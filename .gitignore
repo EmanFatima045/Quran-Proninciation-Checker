@@ -1,0 +1,6 @@
+model_cache/
+quran_audio/
+quran_users.db
+*.safetensors
+*.mp3
+*.db
