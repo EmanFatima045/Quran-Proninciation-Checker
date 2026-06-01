@@ -1,10 +1,9 @@
 """
 =====================================================================
-  Quran Pronunciation Checker — v6 (TRUE DETECTION-FIRST)
+  Quran Pronunciation Checker — v8 (SURAH-SCOPED DETECTION)
 =====================================================================
-  FIX: Detection ALWAYS wins when confident.
-       UI selection is a last-resort fallback only.
-       selected_score no longer influences routing.
+  User picks a surah only. Scoring uses the ayah detected from audio
+  within that surah (never the old per-ayah picker).
 =====================================================================
 """
 
@@ -30,15 +29,19 @@ import whisper
 # ── Config ────────────────────────────────────────────────────────────
 SAMPLE_RATE        = 16000
 ARABIC_MODEL_NAME  = "jonatasgrosman/wav2vec2-large-xlsr-53-arabic"
-WHISPER_MODEL_SIZE = "tiny"
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "small")
 AUDIO_FOLDER       = "quran_audio"
 QURAN_TEXT_FILE    = "quran_tanzil.txt"
 MAX_AYAHS          = 6236
 SCORE_CORRECT      = 0.82
 SCORE_SLIGHT       = 0.55
-MIN_DETECT_MATCH   = 0.34
+MIN_DETECT_MATCH   = 0.28
+MIN_SURAH_MARGIN   = 0.04
 GLOBAL_MIN_MATCH   = 0.44
 GLOBAL_SCORE_MARGIN= 0.08
+# Minimum transcription↔ayah fit to score (never use UI picker as ayah)
+MIN_RECITED_DETECT_SCORE = 0.32
+MIN_RECITED_TEXT_MATCH   = 0.20
 DEVICE             = "cuda" if torch.cuda.is_available() else "cpu"
 DB_PATH            = "quran_users.db"
 WAV2VEC_CACHE      = "./model_cache/wav2vec2"
@@ -450,36 +453,72 @@ def _transcribe_wav2vec2(path: str) -> str:
         return ""
 
 
-def transcribe_audio(path: str) -> str:
+def _transcribe_whisper(path: str) -> str:
+    with WHISPER_SEMAPHORE:
+        result = whisper_model.transcribe(
+            path,
+            language="ar",
+            task="transcribe",
+            fp16=(DEVICE == "cuda"),
+            verbose=False,
+            condition_on_previous_text=False,
+            beam_size=5,
+            best_of=3,
+            temperature=0.0,
+            no_speech_threshold=0.5,
+            compression_ratio_threshold=2.4,
+        )
+    text = result["text"].strip()
+    return "" if is_hallucination(text) else text
+
+
+def _pick_best_transcription(candidates: list[str], scope_surah: int | None) -> str:
+    if not candidates:
+        return ""
+    if len(candidates) == 1:
+        return candidates[0]
+    if not scope_surah:
+        return max(candidates, key=lambda t: len(normalise_arabic(t)))
+
+    surah_rows = SURAH_INDEX.get(scope_surah, [])
+    if not surah_rows:
+        return candidates[0]
+
+    def fit_score(text: str) -> float:
+        row, sc = detect_ayah_in_surah(text, surah_rows)
+        return sc if row else 0.0
+
+    best = max(candidates, key=fit_score)
+    print(f"[TRANSCRIBE] Picked best of {len(candidates)} candidates for S{scope_surah}")
+    return best
+
+
+def transcribe_audio(path: str, scope_surah: int | None = None) -> str:
     trimmed_path = trim_silence(path)
+    candidates: list[str] = []
     try:
-        with WHISPER_SEMAPHORE:
-            result = whisper_model.transcribe(
-                trimmed_path,
-                language="ar",
-                task="transcribe",
-                fp16=(DEVICE == "cuda"),
-                verbose=False,
-                condition_on_previous_text=False,
-                beam_size=1,
-                best_of=1,
-                temperature=0.0,
-                no_speech_threshold=0.6,
-                compression_ratio_threshold=2.4,
-                initial_prompt="بسم الله الرحمن الرحيم",
-            )
-        text = result["text"].strip()
-        if is_hallucination(text):
-            print("[TRANSCRIBE] Whisper hallucination — trying wav2vec2 fallback …")
-            return _transcribe_wav2vec2(trimmed_path)
-        return text
+        w2v = _transcribe_wav2vec2(trimmed_path)
+        if w2v:
+            candidates.append(w2v)
+            print(f"[TRANSCRIBE] Wav2Vec2: '{w2v[:80]}'")
     except Exception as e:
-        print(f"[TRANSCRIBE] Whisper error ({e}), wav2vec2 fallback …")
-        return _transcribe_wav2vec2(path)
-    finally:
-        if trimmed_path != path and os.path.exists(trimmed_path):
-            try: os.remove(trimmed_path)
-            except: pass
+        print(f"[TRANSCRIBE] Wav2Vec2 error: {e}")
+
+    try:
+        whisper_text = _transcribe_whisper(trimmed_path)
+        if whisper_text:
+            candidates.append(whisper_text)
+            print(f"[TRANSCRIBE] Whisper ({WHISPER_MODEL_SIZE}): '{whisper_text[:80]}'")
+    except Exception as e:
+        print(f"[TRANSCRIBE] Whisper error ({e})")
+
+    text = _pick_best_transcription(candidates, scope_surah)
+    if trimmed_path != path and os.path.exists(trimmed_path):
+        try:
+            os.remove(trimmed_path)
+        except OSError:
+            pass
+    return text
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -545,145 +584,246 @@ def detect_ayah_in_surah(transcription: str, surah_rows: list) -> tuple[dict | N
     """Return (best_row, score) within the given surah rows."""
     if not surah_rows:
         return None, 0.0
-    if len(surah_rows) == 1:
-        t_norm = normalise_arabic(transcription)
-        sc = compute_ayah_score(t_norm, normalise_arabic(surah_rows[0]["text"]),
-                                surah_rows[0]["ayah"], surah_rows[0]["surah"])
-        return surah_rows[0], sc
 
     t_norm = normalise_arabic(transcription)
-
-    # Too short or empty (hallucination guard already cleared this)
     if len(t_norm.strip()) < 3:
         return None, 0.0
 
-    best_row, best_score = None, -1.0
+    if len(surah_rows) == 1:
+        sc = compute_ayah_score(
+            t_norm, normalise_arabic(surah_rows[0]["text"]),
+            surah_rows[0]["ayah"], surah_rows[0]["surah"],
+        )
+        return surah_rows[0], sc
+
+    best_row, best_score, second_score = None, -1.0, -1.0
     for row in surah_rows:
-        sc = compute_ayah_score(t_norm, normalise_arabic(row["text"]),
-                                row["ayah"], row["surah"])
-        if sc > best_score:
-            best_score, best_row = sc, row
+        a_norm = normalise_arabic(row["text"])
+        seq    = SequenceMatcher(None, t_norm, a_norm, autojunk=False).ratio()
+        sc     = compute_ayah_score(t_norm, a_norm, row["ayah"], row["surah"])
+        combined = 0.65 * seq + 0.35 * sc
+        if combined > best_score:
+            second_score = best_score
+            best_score, best_row = combined, row
+        elif combined > second_score:
+            second_score = combined
 
-    if best_score < MIN_DETECT_MATCH:
-        return None, 0.0
+    margin = best_score - max(second_score, 0.0)
+    if best_row is None or best_score < MIN_DETECT_MATCH:
+        return None, best_score
 
-    print(f"[DETECT_SURAH] Ayah {best_row['ayah']} score={best_score:.3f}")
+    if len(surah_rows) > 1 and margin < MIN_SURAH_MARGIN and best_score < 0.42:
+        print(
+            f"[DETECT_SURAH] Ambiguous in surah ({best_score:.3f} vs {second_score:.3f})"
+        )
+        return None, best_score
+
+    print(f"[DETECT_SURAH] Ayah {best_row['ayah']} score={best_score:.3f} margin={margin:.3f}")
     return best_row, best_score
 
 
 # ══════════════════════════════════════════════════════════════════
 #  AYAH DETECTION (global / cross-surah)
 # ══════════════════════════════════════════════════════════════════
+def _scan_quran_for_best_match(transcription: str) -> tuple[dict | None, float, float]:
+    """
+    Return (best_row, best_score, second_best_score) across the full Quran.
+    Uses word index + SequenceMatcher re-rank (not picker / surah scope).
+    """
+    t_norm  = normalise_arabic(transcription)
+    t_words = t_norm.split()
+    if len(t_norm.strip()) < 3:
+        return None, 0.0, 0.0
+
+    hit_counts: dict[int, int] = {}
+    for w in t_words:
+        for idx in AYAH_WORD_INDEX.get(w, ()):
+            hit_counts[idx] = hit_counts.get(idx, 0) + (1 if w in ARABIC_STOPWORDS else 4)
+
+    if hit_counts:
+        candidate_idxs = [i for i, _ in sorted(hit_counts.items(), key=lambda x: -x[1])[:120]]
+    else:
+        candidate_idxs = list(range(len(QURAN_DATA)))
+
+    def _score_indices(idxs: list[int]) -> tuple[dict | None, float, float]:
+        best_row, best_score, second_score = None, -1.0, -1.0
+        for idx in idxs:
+            row    = QURAN_DATA[idx]
+            a_norm = AYAH_NORM_CACHE[idx]
+            seq    = SequenceMatcher(None, t_norm, a_norm, autojunk=False).ratio()
+            sc     = compute_ayah_score(t_norm, a_norm, row["ayah"], row["surah"])
+            combined = 0.70 * seq + 0.30 * sc
+            if combined > best_score:
+                second_score = best_score
+                best_score, best_row = combined, row
+            elif combined > second_score:
+                second_score = combined
+        return best_row, best_score, max(second_score, 0.0)
+
+    best_row, best_score, second_score = _score_indices(candidate_idxs)
+
+    # If index gave few hits, run full Quran scan so we never miss another surah
+    if len(hit_counts) < 4 and len(QURAN_DATA) > len(candidate_idxs):
+        full_row, full_score, full_second = _score_indices(list(range(len(QURAN_DATA))))
+        if full_row and full_score > best_score:
+            best_row, best_score, second_score = full_row, full_score, full_second
+
+    if best_row is None:
+        return None, 0.0, 0.0
+    return best_row, best_score, second_score
+
+
 def detect_globally(transcription: str) -> tuple[dict | None, float]:
-    """Return (best_row, score) across the full Quran."""
-    t_norm = normalise_arabic(transcription)
-    if len(t_norm.strip()) < 4:
+    """Return (best_row, score) when the global match is confident enough."""
+    best_row, best_score, second_score = _scan_quran_for_best_match(transcription)
+    if best_row is None:
         return None, 0.0
 
-    best_row, best_score, second_score = None, -1.0, -1.0
-    for row in QURAN_DATA:
-        sc = compute_ayah_score(t_norm, normalise_arabic(row["text"]),
-                                row["ayah"], row["surah"])
-        if sc > best_score:
-            second_score = best_score
-            best_score, best_row = sc, row
-        elif sc > second_score:
-            second_score = sc
+    margin = best_score - second_score
 
-    if best_row is None or best_score < GLOBAL_MIN_MATCH:
-        return None, 0.0
+    if best_score >= GLOBAL_MIN_MATCH:
+        if margin >= GLOBAL_SCORE_MARGIN or best_score >= 0.55:
+            print(f"[DETECT_GLOBAL] S{best_row['surah']} A{best_row['ayah']} score={best_score:.3f}")
+            return best_row, best_score
+        print(f"[DETECT_GLOBAL] Ambiguous ({best_score:.3f} vs {second_score:.3f})")
 
-    if best_score - second_score < GLOBAL_SCORE_MARGIN:
-        print(f"[DETECT_GLOBAL] Ambiguous ({best_score:.3f} vs {second_score:.3f}) — skipping")
-        return None, 0.0
+    if best_score >= 0.36 and margin >= 0.04:
+        print(f"[DETECT_GLOBAL] Relaxed S{best_row['surah']} A{best_row['ayah']} score={best_score:.3f}")
+        return best_row, best_score
 
-    print(f"[DETECT_GLOBAL] S{best_row['surah']} A{best_row['ayah']} score={best_score:.3f}")
-    return best_row, best_score
+    return None, 0.0
 
 
 # ══════════════════════════════════════════════════════════════════
-#  CORE ROUTING — TRUE DETECTION-FIRST (v6 FIX)
-#
-#  RULE: detection ALWAYS wins when score >= DETECTION_CONFIDENCE.
-#        UI selection (known_ayah) is ONLY used as last-resort
-#        fallback when BOTH in-surah and global detection fail.
-#        selected_score does NOT influence the decision AT ALL.
+#  CORE ROUTING — RECITATION-ONLY (no UI / picker fallback)
 # ══════════════════════════════════════════════════════════════════
 def resolve_target_ayah(
         transcribed_text: str,
-        surah_rows: list,
-        known_ayah: int | None = None,
-        all_surah_rows: list | None = None,
-) -> tuple[dict, float, bool, dict | None, dict | None, bool]:
-
-    t_norm      = normalise_arabic(transcribed_text)
-    search_rows = all_surah_rows if all_surah_rows else surah_rows
-
-    # Resolve the UI-selected row — kept only for fallback & diff reporting
-    selected_row = None
-    if known_ayah is not None:
-        selected_row = next((r for r in surah_rows if r["ayah"] == known_ayah), None)
-
-    # ── Run both detectors ────────────────────────────────────────
-    in_surah_row,  in_surah_score  = detect_ayah_in_surah(transcribed_text, search_rows)
-    global_row,    global_score    = detect_globally(transcribed_text)
-
-    print(
-        f"[ROUTE] in_surah=A{in_surah_row['ayah'] if in_surah_row else 'None'}"
-        f"({in_surah_score:.3f})  "
-        f"global=S{global_row['surah'] if global_row else '-'}:"
-        f"A{global_row['ayah'] if global_row else 'None'}({global_score:.3f})  "
-        f"ui_selected=A{known_ayah}"
-    )
-
-    # ── Pick the stronger detected candidate ──────────────────────
-    if global_score >= in_surah_score:
-        detected_row, detected_score = global_row, global_score
-    else:
-        detected_row, detected_score = in_surah_row, in_surah_score
-
-    # ══════════════════════════════════════════════════════════════
-    #  DECISION — detection ALWAYS wins if confident enough
-    #  UI selection is NEVER compared against detected score.
-    # ══════════════════════════════════════════════════════════════
-    if detected_row is not None and detected_score >= DETECTION_CONFIDENCE:
-        # ✅ Detection is confident → use it, ignore UI completely
-        ayah_row      = detected_row
-        auto_detected = True
-        print(
-            f"[ROUTE] ✅ DETECTION WINS → "
-            f"S{ayah_row['surah']} A{ayah_row['ayah']} "
-            f"(score={detected_score:.3f})"
-        )
-    else:
-        # ⚠️ Detection failed or too weak → fall back to UI selection
-        ayah_row      = selected_row if selected_row else surah_rows[0]
-        auto_detected = selected_row is None
-        print(
-            f"[ROUTE] ⚠️ Detection too weak (score={detected_score:.3f}) → "
-            f"fallback to {'UI-selected' if selected_row else 'first'} "
-            f"A{ayah_row['ayah']}"
+        scope_surah: int | None = None,
+) -> tuple[dict, float, bool, None, None, bool]:
+    """
+    Identify the ayah from transcription.
+    When scope_surah is set, search only within that surah (UI surah picker).
+    """
+    t_norm = normalise_arabic(transcribed_text)
+    if len(t_norm.strip()) < 3:
+        raise ValueError(
+            "Recitation too short to identify an ayah. "
+            "Please record one complete ayah clearly."
         )
 
-    text_match_ratio = SequenceMatcher(
-        None, t_norm, normalise_arabic(ayah_row["text"]), autojunk=False
+    if scope_surah:
+        surah_rows = SURAH_INDEX.get(scope_surah, [])
+        if not surah_rows:
+            raise ValueError(f"Surah {scope_surah} not found in Quran text.")
+
+        best_row, best_score = detect_ayah_in_surah(transcribed_text, surah_rows)
+        if best_row is None:
+            raise ValueError(
+                f"Could not identify which ayah you recited in Surah {scope_surah}. "
+                "Recite one full ayah clearly in a quiet room."
+            )
+
+        text_match_ratio = SequenceMatcher(
+            None, t_norm, normalise_arabic(best_row["text"]), autojunk=False,
+        ).ratio()
+        rare_hits = _count_rare_matches(
+            t_norm.split(), set(normalise_arabic(best_row["text"]).split()),
+        )
+
+        if text_match_ratio < MIN_RECITED_TEXT_MATCH:
+            raise ValueError(
+                "Your recording does not closely match any ayah in this surah. "
+                "Please recite one complete ayah without skipping words."
+            )
+
+        print(
+            f"[ROUTE] ✅ SURAH {scope_surah} → Ayah {best_row['ayah']} "
+            f"(score={best_score:.3f} text_match={text_match_ratio:.2%})"
+        )
+        return best_row, text_match_ratio, True, None, None, False
+
+    best_row, best_score, second_score = _scan_quran_for_best_match(transcribed_text)
+    if best_row is None:
+        raise ValueError(
+            "Could not match your recitation to any ayah. "
+            "Please record clearly in a quiet place."
+        )
+
+    # Re-rank top word-hit candidates by full-text similarity (fixes wrong-surah picks)
+    hit_counts: dict[int, int] = {}
+    for w in t_norm.split():
+        for idx in AYAH_WORD_INDEX.get(w, ()):
+            hit_counts[idx] = hit_counts.get(idx, 0) + 1
+    current_seq = SequenceMatcher(
+        None, t_norm, normalise_arabic(best_row["text"]), autojunk=False,
     ).ratio()
-
-    corrected_from_selection = bool(
-        selected_row
-        and (
-            ayah_row["surah"] != selected_row["surah"]
-            or ayah_row["ayah"]  != selected_row["ayah"]
+    seq_best_row, seq_best = best_row, current_seq
+    for idx in [i for i, _ in sorted(hit_counts.items(), key=lambda x: -x[1])[:30]]:
+        seq = SequenceMatcher(None, t_norm, AYAH_NORM_CACHE[idx], autojunk=False).ratio()
+        if seq > seq_best:
+            seq_best, seq_best_row = seq, QURAN_DATA[idx]
+    if (
+        seq_best_row["surah"] != best_row["surah"]
+        or seq_best_row["ayah"] != best_row["ayah"]
+    ) and seq_best >= MIN_RECITED_TEXT_MATCH and seq_best > current_seq + 0.06:
+        print(
+            f"[ROUTE] Re-ranked S{best_row['surah']} A{best_row['ayah']} → "
+            f"S{seq_best_row['surah']} A{seq_best_row['ayah']} (seq {current_seq:.2f}→{seq_best:.2f})"
         )
+        best_row, best_score = seq_best_row, max(best_score, seq_best)
+
+    margin = best_score - second_score
+    text_match_ratio = SequenceMatcher(
+        None, t_norm, normalise_arabic(best_row["text"]), autojunk=False,
+    ).ratio()
+    rare_hits = _count_rare_matches(
+        t_norm.split(), set(normalise_arabic(best_row["text"]).split()),
     )
 
     print(
-        f"[ROUTE] FINAL → S{ayah_row['surah']} A{ayah_row['ayah']} "
-        f"text_match={text_match_ratio:.2%} "
-        f"auto={auto_detected} corrected={corrected_from_selection}"
+        f"[ROUTE] best=S{best_row['surah']} A{best_row['ayah']} "
+        f"score={best_score:.3f} margin={margin:.3f} text_match={text_match_ratio:.2%} "
+        f"rare_words={rare_hits}"
     )
 
-    return ayah_row, text_match_ratio, auto_detected, selected_row, None, corrected_from_selection
+    confident = False
+    if best_score >= GLOBAL_MIN_MATCH and (
+        margin >= GLOBAL_SCORE_MARGIN or best_score >= 0.55
+    ):
+        confident = True
+    elif best_score >= 0.36 and margin >= 0.04:
+        confident = True
+    elif (
+        best_score >= MIN_RECITED_DETECT_SCORE
+        and text_match_ratio >= MIN_RECITED_TEXT_MATCH
+        and rare_hits >= 1
+    ):
+        confident = True
+
+    if not confident:
+        raise ValueError(
+            "Could not confidently identify which ayah you recited. "
+            "Try a quieter room, speak clearly, and recite one full ayah. "
+            f"(best match {int(best_score * 100)}%)"
+        )
+
+    if text_match_ratio < MIN_RECITED_TEXT_MATCH:
+        raise ValueError(
+            "Your recording does not closely match a single ayah. "
+            "Please recite one complete ayah without skipping words."
+        )
+
+    if len(t_norm.split()) >= 4 and rare_hits < 1:
+        raise ValueError(
+            "Could not identify a specific ayah — too many common words matched. "
+            "Recite a longer, clearer ayah."
+        )
+
+    print(
+        f"[ROUTE] ✅ GLOBAL → S{best_row['surah']} A{best_row['ayah']}"
+    )
+    return best_row, text_match_ratio, True, None, None, False
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -773,16 +913,14 @@ def prewarm_wav_cache():
 # ══════════════════════════════════════════════════════════════════
 def analyse_multi_reciter(
         user_path: str,
-        surah_rows: list,
         user_id: str,
-        known_ayah: int | None = None,
-        all_surah_rows: list | None = None,
+        scope_surah: int | None = None,
 ) -> dict:
     t_start = time.time()
 
     # ── STEP 1: Transcription ──────────────────────────────────────
     t0               = time.time()
-    transcribed_text = transcribe_audio(user_path)
+    transcribed_text = transcribe_audio(user_path, scope_surah=scope_surah)
     transcription_ms = int((time.time() - t0) * 1000)
 
     if not transcribed_text:
@@ -792,11 +930,11 @@ def analyse_multi_reciter(
             "transcription_ms": transcription_ms,
         }
 
-    # ── STEP 2: Resolve target ayah (detection-first) ──────────────
+    # ── STEP 2: Detect ayah from transcription (within selected surah) ─
     try:
         (ayah_row, text_match_ratio, auto_detected,
          selected_row, suggested_ayah, recitation_mismatch) = resolve_target_ayah(
-            transcribed_text, surah_rows, known_ayah, all_surah_rows
+            transcribed_text, scope_surah=scope_surah,
         )
     except ValueError as e:
         return {
@@ -963,14 +1101,15 @@ def analyse_multi_reciter(
         "text_match_ratio":   round(text_match_ratio * 100, 1),
         "user_pace":          user_pace,
         "ayah":               ayah_row,
+        "scoring_source":      "detected_from_audio",
         "detected_ayah": {
             "surah":               ayah_row["surah"],
             "ayah":                ayah_row["ayah"],
             "text":                ayah_row["text"],
             "auto_detected":       auto_detected,
-            "recitation_mismatch": recitation_mismatch,
-            "selected_surah":      selected_row["surah"] if selected_row else None,
-            "selected_ayah":       selected_row["ayah"]  if selected_row else None,
+            "recitation_mismatch": False,
+            "selected_surah":      scope_surah,
+            "selected_ayah":       None,
             "suggested_ayah":      None,
         },
         "best_reciter":       best_reciter,
@@ -1047,6 +1186,20 @@ for _row in QURAN_DATA:
 print(f"[DATA] Loaded {len(QURAN_DATA)} ayahs across {len(SURAH_INDEX)} surahs ✓")
 
 
+def _build_ayah_search_index():
+    norm_cache: list[str] = []
+    word_index: dict[str, set[int]] = {}
+    for i, row in enumerate(QURAN_DATA):
+        a_norm = normalise_arabic(row["text"])
+        norm_cache.append(a_norm)
+        for w in set(a_norm.split()):
+            word_index.setdefault(w, set()).add(i)
+    return norm_cache, word_index
+
+
+AYAH_NORM_CACHE, AYAH_WORD_INDEX = _build_ayah_search_index()
+
+
 # ══════════════════════════════════════════════════════════════════
 #  FLASK APP
 # ══════════════════════════════════════════════════════════════════
@@ -1064,8 +1217,10 @@ def too_large(e):
 @app.route("/")
 def index():
     if os.path.exists(os.path.join("static", "index.html")):
-        return send_from_directory("static", "index.html")
-    return jsonify({"status": "Quran Checker v6 running ✓"}), 200
+        resp = send_from_directory("static", "index.html")
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        return resp
+    return jsonify({"status": "Quran Checker v7 running ✓"}), 200
 
 
 @app.route("/favicon.ico")
@@ -1149,65 +1304,35 @@ def api_reciters():
 def api_analyse():
     """
     POST multipart/form-data:
-      audio    : audio file (required)
-      surah    : int (required)
-      ayah     : int (STRONGLY RECOMMENDED — send when user picks from list)
-                 → Skips Whisper + detection entirely. 2-4x faster.
-                 → Also prevents Bismillah false positives.
-      user_id  : string (optional)
-      username : string (optional)
+      audio   : audio file (required)
+      surah   : int (required — limits detection to this surah)
+      user_id : string (optional)
+    Scoring uses the ayah detected from audio within the selected surah.
     """
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
     audio_file = request.files["audio"]
 
-    try:
-        surah = int(request.form.get("surah") or 1)
-    except ValueError:
-        return jsonify({"error": "surah must be an integer"}), 400
+    if request.form.get("ayah", "").strip() or request.form.get("picker_ayah", "").strip():
+        print("[API] legacy ayah picker fields ignored — detection is audio-only")
 
-    # Only treat ayah as "selected" if the frontend EXPLICITLY sends it.
-    # Never default to ayah 1 — leave as None so detection runs freely.
-    known_ayah = None
-    raw_ayah   = request.form.get("ayah", "").strip()
-    if raw_ayah:
-        try:
-            known_ayah = int(raw_ayah)
-        except ValueError:
-            pass
+    scope_surah = None
+    for key in ("surah", "picker_surah"):
+        raw = request.form.get(key, "").strip()
+        if raw:
+            try:
+                scope_surah = int(raw)
+                break
+            except ValueError:
+                return jsonify({"error": "surah must be an integer"}), 400
+
+    if not scope_surah or scope_surah < 1 or scope_surah > 114:
+        return jsonify({"error": "Please select a surah (1–114) before analysing."}), 400
 
     user_id  = request.form.get("user_id")  or str(uuid.uuid4())
     username = request.form.get("username") or "Anonymous"
 
-    try:
-        range_from = int(request.form.get("range_from") or 1)
-        range_to   = int(request.form.get("range_to")   or 9999)
-    except ValueError:
-        range_from, range_to = 1, 9999
-
-    print(f"[API] surah={surah} ayah={known_ayah} range={range_from}-{range_to}")
-
-    all_surah_rows = SURAH_INDEX.get(surah)
-    if not all_surah_rows:
-        return jsonify({"error": f"Surah {surah} not found"}), 404
-
-    surah_rows = [r for r in all_surah_rows if range_from <= r["ayah"] <= range_to]
-    if not surah_rows:
-        return jsonify({
-            "error": f"No ayahs found in range {range_from}–{range_to} for Surah {surah}"
-        }), 404
-
-    if known_ayah is None:
-        print("[API] No ayah provided — detection runs freely ✓")
-    else:
-        if not any(r["ayah"] == known_ayah for r in surah_rows):
-            return jsonify({
-                "error": (
-                    f"Selected Ayah {known_ayah} is outside range "
-                    f"{range_from}–{range_to}. Adjust range or pick a different ayah."
-                )
-            }), 400
-        print(f"[API] UI hint: ayah {known_ayah} (detection may override this)")
+    print(f"[API] detect-within-surah S{scope_surah} (audio only)")
 
     filename = audio_file.filename or ""
     suffix   = ".webm"
@@ -1223,7 +1348,8 @@ def api_analyse():
 
     try:
         result = analyse_multi_reciter(
-            tmp_path, surah_rows, user_id, known_ayah, all_surah_rows
+            tmp_path, user_id,
+            scope_surah=scope_surah,
         )
         if "error" in result and len(result) <= 3:
             return jsonify(result), 422
@@ -1255,17 +1381,16 @@ def api_user_profile(user_id):
 def health():
     return jsonify({
         "status":     "ok",
-        "version":    "v6",
+        "version":    "v8-surah-scoped-detect",
         "device":     DEVICE,
         "reciters":   list(RECITERS.keys()),
         "ayah_count": len(QURAN_DATA),
         "models":     {"wav2vec2": ARABIC_MODEL_NAME, "whisper": WHISPER_MODEL_SIZE},
         "thresholds": {"correct": SCORE_CORRECT, "slight": SCORE_SLIGHT},
-        "v6_changes": {
-            "detection_first": "Detection ALWAYS wins when score >= DETECTION_CONFIDENCE",
-            "no_ui_bias":      "selected_score no longer influences routing at all",
-            "fallback_only":   "UI selection used ONLY when both detectors fail",
-            "DETECTION_CONFIDENCE": DETECTION_CONFIDENCE,
+        "scoring_mode": "surah_scoped — ayah detected from audio within selected surah",
+        "thresholds_detect": {
+            "MIN_RECITED_DETECT_SCORE": MIN_RECITED_DETECT_SCORE,
+            "MIN_RECITED_TEXT_MATCH":   MIN_RECITED_TEXT_MATCH,
         },
         "cache": {
             "ref_emb": len(REF_EMB_CACHE),
