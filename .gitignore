@@ -1,6 +1,11 @@
-model_cache/
-quran_audio/
-quran_users.db
-*.safetensors
-*.mp3
+__pycache__/
+*.pyc
+
+# Database files (CRITICAL)
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# OS junk
+.DS_Store
