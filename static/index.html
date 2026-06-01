@@ -1644,6 +1644,7 @@ function showResults(data){
     document.querySelectorAll('.rec-bar-fill[data-t]').forEach(b => { b.style.width = b.dataset.t + '%'; });
   }, 200);
 
+  /* ── Show + scroll ── */
   document.getElementById('results').classList.add('show');
   document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
 

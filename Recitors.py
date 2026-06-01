@@ -223,7 +223,7 @@ def get_user_reciter_stats(user_id):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  MODEL LOADING
+#  MODEL LOADING  — FIX 1: NO torch.compile ON WINDOWS/CPU
 # ══════════════════════════════════════════════════════════════════
 def load_wav2vec2():
     proc_path  = os.path.join(WAV2VEC_CACHE, "processor")
@@ -552,6 +552,8 @@ def detect_ayah_in_surah(transcription: str, surah_rows: list) -> tuple[dict | N
         return surah_rows[0], sc
 
     t_norm = normalise_arabic(transcription)
+
+    # Too short or empty (hallucination guard already cleared this)
     if len(t_norm.strip()) < 3:
         return None, 0.0
 
@@ -1145,6 +1147,16 @@ def api_reciters():
 
 @app.route("/api/analyse", methods=["POST"])
 def api_analyse():
+    """
+    POST multipart/form-data:
+      audio    : audio file (required)
+      surah    : int (required)
+      ayah     : int (STRONGLY RECOMMENDED — send when user picks from list)
+                 → Skips Whisper + detection entirely. 2-4x faster.
+                 → Also prevents Bismillah false positives.
+      user_id  : string (optional)
+      username : string (optional)
+    """
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
     audio_file = request.files["audio"]
@@ -1262,6 +1274,9 @@ def health():
     })
 
 
+# ══════════════════════════════════════════════════════════════════
+#  STARTUP
+# ══════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     threading.Thread(target=prewarm_wav_cache, daemon=True).start()
     port = int(os.environ.get("PORT", 5000))
