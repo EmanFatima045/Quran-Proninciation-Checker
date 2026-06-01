@@ -26,6 +26,8 @@
   --rose:       #f43f5e;
   --glow:       rgba(124,58,237,0.15);
   --glow2:      rgba(124,58,237,0.08);
+  --confirm-bg: rgba(124,58,237,0.08);
+  --confirm-border: rgba(124,58,237,0.4);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -39,8 +41,7 @@ body {
 }
 
 body::before {
-  content:'';
-  position:fixed;inset:0;z-index:0;
+  content:'';position:fixed;inset:0;z-index:0;
   background:
     radial-gradient(ellipse 120% 60% at 15% -10%, rgba(139,92,246,0.18) 0%, transparent 55%),
     radial-gradient(ellipse 80% 80% at 90% 110%, rgba(196,124,252,0.12) 0%, transparent 50%),
@@ -49,8 +50,7 @@ body::before {
 }
 
 body::after {
-  content:'';
-  position:fixed;inset:0;z-index:0;
+  content:'';position:fixed;inset:0;z-index:0;
   background-image:
     radial-gradient(1px 1px at 15% 20%, rgba(124,58,237,0.4) 0%, transparent 1px),
     radial-gradient(1px 1px at 72% 8%,  rgba(196,124,252,0.4) 0%, transparent 1px),
@@ -106,7 +106,7 @@ header { padding:48px 0 32px; text-align:center; }
 .card-title { font-family:'Playfair Display',serif;font-size:22px;font-weight:500;color:var(--ink2); }
 .card-sub { font-size:12px;color:var(--muted);margin-top:2px }
 
-/* ── SURAH + RANGE SELECTOR ── */
+/* ── SELECTOR ── */
 .selector-grid { display:grid;grid-template-columns:1fr;gap:18px; }
 .field-label { display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.8px;margin-bottom:8px; }
 .field-hint { font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent3);margin-left:6px;font-size:10px }
@@ -136,6 +136,129 @@ header { padding:48px 0 32px; text-align:center; }
 .range-count-num { font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--accent); }
 .range-count-lbl { font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px }
 
+/* ══════════════════════════════
+   AYAH PICKER — REDESIGNED
+   Shows the ayah text live, big and clear
+══════════════════════════════ */
+.ayah-picker-wrap {
+  margin-top:18px;
+  padding:20px;
+  background:linear-gradient(135deg,rgba(124,58,237,0.07),rgba(168,85,247,0.04));
+  border:2px solid rgba(124,58,237,0.35);
+  border-radius:18px;
+}
+.ayah-picker-label-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:12px;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.ayah-picker-label-row .field-label {
+  margin-bottom:0;
+  color:var(--accent);
+}
+.ayah-path-tag {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  background:rgba(16,185,129,0.12);
+  border:1px solid rgba(16,185,129,0.3);
+  border-radius:50px;
+  padding:3px 12px;
+  font-size:10px;
+  font-weight:700;
+  color:#047857;
+  letter-spacing:0.5px;
+}
+.ayah-picker-info {
+  margin-top:14px;
+  padding:16px 18px;
+  background:var(--surface);
+  border-radius:14px;
+  border:1.5px solid var(--border2);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-height:60px;
+}
+.api-num {
+  font-family:'Playfair Display',serif;
+  font-size:32px;
+  font-weight:700;
+  color:var(--accent);
+  flex-shrink:0;
+  line-height:1;
+  min-width:36px;
+  text-align:center;
+}
+.api-text {
+  font-family:'Amiri',serif;
+  font-size:20px;
+  direction:rtl;
+  color:var(--ink2);
+  flex:1;
+  text-align:right;
+  line-height:1.9;
+}
+.api-text.loading { color:var(--muted);font-style:italic;font-size:14px;font-family:'Outfit',sans-serif;direction:ltr;text-align:left; }
+
+/* ══════════════════════════════
+   CONFIRMATION BANNER — THE KEY FIX
+   Always visible above Analyse button
+   Shows EXACTLY which ayah will be scored
+══════════════════════════════ */
+.ayah-confirm-banner {
+  margin-top:20px;
+  padding:14px 20px;
+  background:var(--confirm-bg);
+  border:2px solid var(--confirm-border);
+  border-radius:16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.acb-icon { font-size:20px;flex-shrink:0; }
+.acb-main {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.acb-title {
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:1.5px;
+}
+.acb-value {
+  font-family:'Playfair Display',serif;
+  font-size:17px;
+  font-weight:600;
+  color:var(--accent);
+}
+.acb-arabic {
+  font-family:'Amiri',serif;
+  font-size:16px;
+  direction:rtl;
+  color:var(--ink2);
+  text-align:right;
+  flex:1;
+  line-height:1.7;
+}
+.acb-warn {
+  font-size:11px;
+  color:var(--muted);
+  font-style:italic;
+  width:100%;
+  padding-top:4px;
+  border-top:1px solid rgba(124,58,237,0.12);
+  margin-top:4px;
+}
+
 .surah-confirm { display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(135deg,rgba(124,58,237,0.07),rgba(168,85,247,0.07));border:1.5px solid rgba(124,58,237,0.2);border-radius:16px;margin-top:16px; }
 .sc-icon-wrap { width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 14px rgba(124,58,237,0.3); }
 .sc-info { flex:1 }
@@ -145,8 +268,20 @@ header { padding:48px 0 32px; text-align:center; }
 
 .ayahs-preview { margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:18px;padding:20px 24px;max-height:220px;overflow-y:auto; }
 .ayahs-preview-title { font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:14px; }
-.ayahs-list { font-family:'Amiri',serif;font-size:19px;color:var(--ink2);direction:rtl;line-height:2.1; }
+.ayahs-list { font-family:'Amiri',serif;font-size:19px;color:var(--ink2);direction:rtl;line-height:2.2; }
 .ayah-number-badge { display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,rgba(124,58,237,0.15),rgba(168,85,247,0.15));font-family:'Outfit',sans-serif;font-size:10px;font-weight:600;color:var(--accent);margin:0 4px;vertical-align:middle; }
+/* Selected ayah highlight in preview */
+.ayah-row-selected {
+  background:rgba(124,58,237,0.1);
+  border:1.5px solid rgba(124,58,237,0.3);
+  border-radius:10px;
+  padding:2px 8px;
+  display:inline;
+}
+.ayah-row-selected .ayah-number-badge {
+  background:var(--accent);
+  color:white;
+}
 
 /* ── AUDIO SECTION ── */
 .audio-tabs { display:flex;gap:8px;margin-bottom:20px; }
@@ -177,7 +312,7 @@ header { padding:48px 0 32px; text-align:center; }
 .audio-preview{ background:var(--surface2);border-radius:16px;padding:16px;border:1px solid var(--border);margin-top:16px;display:none; }
 .audio-preview.show{display:block;animation:fadeSlideUp 0.3s ease}
 
-.analyse-btn { width:100%;padding:18px;background:linear-gradient(135deg,var(--accent),#9333ea);color:white;border:none;border-radius:18px;font-family:'Playfair Display',serif;font-size:20px;letter-spacing:0.5px;cursor:pointer;transition:all 0.3s;box-shadow:0 8px 32px rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;margin-top:24px;position:relative;overflow:hidden; }
+.analyse-btn { width:100%;padding:18px;background:linear-gradient(135deg,var(--accent),#9333ea);color:white;border:none;border-radius:18px;font-family:'Playfair Display',serif;font-size:20px;letter-spacing:0.5px;cursor:pointer;transition:all 0.3s;box-shadow:0 8px 32px rgba(124,58,237,0.4);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;margin-top:16px;position:relative;overflow:hidden; }
 .analyse-btn::before { content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);opacity:0;transition:opacity 0.3s; }
 .analyse-btn:hover::before{opacity:1}
 .analyse-btn:hover{transform:translateY(-2px);box-shadow:0 14px 40px rgba(124,58,237,0.5)}
@@ -237,33 +372,19 @@ header { padding:48px 0 32px; text-align:center; }
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* ══════════════════════════════
-   RESULTS — REDESIGNED
+   RESULTS
 ══════════════════════════════ */
 .results-section{display:none}
 .results-section.show{display:block;animation:fadeSlideUp 0.6s ease}
 
-/* ── Top summary banner ── */
 .result-summary-banner {
-  border-radius:28px;
-  overflow:hidden;
-  margin-bottom:20px;
+  border-radius:28px;overflow:hidden;margin-bottom:20px;
   background:linear-gradient(135deg,#2d1068,#4c1d95,#6d28d9);
-  box-shadow:0 20px 60px rgba(109,40,217,0.4);
-  position:relative;
+  box-shadow:0 20px 60px rgba(109,40,217,0.4);position:relative;
 }
-.result-summary-banner::before{
-  content:'';position:absolute;top:-80px;right:-60px;
-  width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,0.05);
-}
-.result-summary-banner::after{
-  content:'';position:absolute;bottom:-60px;left:-40px;
-  width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.04);
-}
-.rsb-top {
-  padding:32px 32px 20px;
-  display:flex;align-items:center;gap:24px;
-  flex-wrap:wrap;
-}
+.result-summary-banner::before{content:'';position:absolute;top:-80px;right:-60px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,0.05);}
+.result-summary-banner::after{content:'';position:absolute;bottom:-60px;left:-40px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.04);}
+.rsb-top {padding:32px 32px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
 .rsb-trophy{font-size:52px;animation:trophyBounce 0.6s ease 0.3s both;flex-shrink:0}
 @keyframes trophyBounce{from{transform:scale(0) rotate(-15deg)}to{transform:scale(1) rotate(0deg)}}
 .rsb-info{flex:1}
@@ -274,118 +395,40 @@ header { padding:48px 0 32px; text-align:center; }
 .rsb-score{font-family:'Playfair Display',serif;font-size:clamp(52px,8vw,72px);font-weight:700;color:white;line-height:1;letter-spacing:-2px}
 .rsb-score span{font-size:24px;opacity:0.65;letter-spacing:0}
 .rsb-score-lbl{font-size:11px;color:rgba(255,255,255,0.55);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
-
-/* meta row inside banner */
-.rsb-meta-row {
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  border-top:1px solid rgba(255,255,255,0.12);
-}
-.rsb-meta-cell{
-  padding:16px 20px;
-  border-right:1px solid rgba(255,255,255,0.1);
-  position:relative;z-index:1;
-}
+.rsb-meta-row {display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,255,255,0.12);}
+.rsb-meta-cell{padding:16px 20px;border-right:1px solid rgba(255,255,255,0.1);position:relative;z-index:1;}
 .rsb-meta-cell:last-child{border-right:none}
 .rsb-meta-label{font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
 .rsb-meta-value{font-family:'Playfair Display',serif;font-size:16px;font-weight:500;color:white}
 .rsb-meta-sub{font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px}
 .rsb-auto-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);border-radius:50px;padding:3px 12px;font-size:10px;color:rgba(255,255,255,0.85);font-weight:600;letter-spacing:0.5px;margin-top:4px}
+.rsb-path-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.4);border-radius:50px;padding:3px 12px;font-size:10px;color:#6ee7b7;font-weight:600;letter-spacing:0.5px;margin-top:4px}
+.rsb-arabic{font-family:'Amiri',serif;font-size:20px;color:rgba(255,255,255,0.85);direction:rtl;line-height:2;padding:0 20px 20px;text-align:right;position:relative;z-index:1;}
 
-/* detected ayah arabic */
-.rsb-arabic{
-  font-family:'Amiri',serif;font-size:20px;
-  color:rgba(255,255,255,0.85);
-  direction:rtl;line-height:2;
-  padding:0 20px 20px;
-  text-align:right;
-  position:relative;z-index:1;
-}
-
-/* ── Scores row ── */
-.scores-strip{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
-  gap:14px;
-  margin-bottom:20px;
-}
-.score-chip{
-  background:var(--surface);border-radius:20px;
-  padding:20px 14px;text-align:center;
-  border:1px solid var(--border);
-  box-shadow:0 4px 20px var(--glow2);
-}
-.score-chip-val{
-  font-family:'Playfair Display',serif;
-  font-size:32px;font-weight:700;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  line-height:1;margin-bottom:6px;
-}
+.scores-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;margin-bottom:20px;}
+.score-chip{background:var(--surface);border-radius:20px;padding:20px 14px;text-align:center;border:1px solid var(--border);box-shadow:0 4px 20px var(--glow2);}
+.score-chip-val{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin-bottom:6px;}
 .score-chip-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
 
-/* ── Word-by-word card ── */
-.word-section-card{
-  background:var(--surface);border-radius:24px;
-  border:1px solid var(--border);
-  box-shadow:0 4px 40px var(--glow2);
-  margin-bottom:20px;
-  overflow:hidden;
-}
-.wsc-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:20px 28px 16px;
-  border-bottom:1px solid var(--border);
-  flex-wrap:wrap;gap:10px;
-}
+.word-section-card{background:var(--surface);border-radius:24px;border:1px solid var(--border);box-shadow:0 4px 40px var(--glow2);margin-bottom:20px;overflow:hidden;}
+.wsc-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;}
 .wsc-title-wrap{display:flex;align-items:center;gap:14px}
 .wsc-legend{display:flex;gap:16px;flex-wrap:wrap}
 .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
 .leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .leg-dot.correct{background:#10b981}.leg-dot.slight{background:#f59e0b}.leg-dot.wrong{background:#f43f5e}
 
-/* header row */
-.word-table-head{
-  display:grid;
-  grid-template-columns:40px 1fr 1fr 120px 80px 100px;
-  gap:12px;
-  padding:10px 28px;
-  background:var(--surface2);
-  border-bottom:1px solid var(--border);
-  font-size:10px;font-weight:600;color:var(--muted);
-  text-transform:uppercase;letter-spacing:1.5px;
-  align-items:center;
-}
+.word-table-head{display:grid;grid-template-columns:40px 1fr 1fr 120px 80px 100px;gap:12px;padding:10px 28px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;align-items:center;}
 .word-table-body{padding:12px 20px;display:flex;flex-direction:column;gap:8px}
 
-/* each word row */
-.word-row-new{
-  display:grid;
-  grid-template-columns:40px 1fr 1fr 120px 80px 100px;
-  gap:12px;
-  align-items:center;
-  padding:14px 8px;
-  border-radius:16px;
-  border:1.5px solid transparent;
-  transition:all 0.2s;
-}
+.word-row-new{display:grid;grid-template-columns:40px 1fr 1fr 120px 80px 100px;gap:12px;align-items:center;padding:14px 8px;border-radius:16px;border:1.5px solid transparent;transition:all 0.2s;}
 .word-row-new:hover{transform:translateX(-3px)}
 .word-row-new.correct{background:rgba(16,185,129,0.05);border-color:rgba(16,185,129,0.2)}
 .word-row-new.slight {background:rgba(245,158,11,0.05);border-color:rgba(245,158,11,0.2)}
 .word-row-new.wrong  {background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.2)}
 
-.word-num-badge{
-  width:32px;height:32px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:600;
-  background:var(--surface2);
-  border:1px solid var(--border2);
-  color:var(--muted);flex-shrink:0;
-}
-.word-arabic-col{
-  font-family:'Amiri',serif;font-size:22px;
-  color:var(--ink2);direction:rtl;text-align:right;
-}
+.word-num-badge{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--surface2);border:1px solid var(--border2);color:var(--muted);flex-shrink:0;}
+.word-arabic-col{font-family:'Amiri',serif;font-size:22px;color:var(--ink2);direction:rtl;text-align:right;}
 .word-roman-col{font-size:13px;color:var(--muted);font-style:italic}
 .word-bar-col{display:flex;align-items:center;gap:8px}
 .word-bar-track{flex:1;height:6px;background:rgba(124,58,237,0.08);border-radius:6px;overflow:hidden;border:1px solid var(--border)}
@@ -396,54 +439,19 @@ header { padding:48px 0 32px; text-align:center; }
 .word-pct-col{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;text-align:center}
 .pct-correct{color:#059669}.pct-slight{color:#b45309}.pct-wrong{color:#be123c}
 
-.word-status-badge{
-  padding:5px 14px;border-radius:50px;
-  font-size:11px;font-weight:600;text-align:center;
-  display:inline-block;
-}
+.word-status-badge{padding:5px 14px;border-radius:50px;font-size:11px;font-weight:600;text-align:center;display:inline-block;}
 .status-correct{background:rgba(16,185,129,0.12);color:#065f46;border:1px solid rgba(16,185,129,0.25)}
 .status-slight {background:rgba(245,158,11,0.12);color:#92400e;border:1px solid rgba(245,158,11,0.25)}
 .status-wrong  {background:rgba(244,63,94,0.12); color:#9f1239;border:1px solid rgba(244,63,94,0.25)}
 
-/* ── Reciter comparison card ── */
-.reciter-comp-card{
-  background:var(--surface);border-radius:24px;
-  border:1px solid var(--border);
-  box-shadow:0 4px 40px var(--glow2);
-  margin-bottom:24px;
-  overflow:hidden;
-}
-.rcc-header{
-  display:flex;align-items:center;gap:14px;
-  padding:20px 28px 16px;
-  border-bottom:1px solid var(--border);
-}
+.reciter-comp-card{background:var(--surface);border-radius:24px;border:1px solid var(--border);box-shadow:0 4px 40px var(--glow2);margin-bottom:24px;overflow:hidden;}
+.rcc-header{display:flex;align-items:center;gap:14px;padding:20px 28px 16px;border-bottom:1px solid var(--border);}
 .rcc-body{padding:20px 28px;display:flex;flex-direction:column;gap:14px}
 
-.rec-comp-row{
-  display:grid;
-  grid-template-columns:36px 1fr 200px 70px;
-  gap:16px;align-items:center;
-  padding:16px 18px;
-  border-radius:18px;
-  border:1.5px solid var(--border);
-  background:var(--surface2);
-  transition:all 0.2s;
-}
-.rec-comp-row.best{
-  border-color:rgba(124,58,237,0.35);
-  background:linear-gradient(135deg,rgba(124,58,237,0.05),rgba(168,85,247,0.04));
-  box-shadow:0 4px 24px rgba(124,58,237,0.1);
-}
-.rec-comp-rank{
-  width:34px;height:34px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:13px;font-weight:700;color:var(--muted);
-  background:var(--surface);border:1.5px solid var(--border2);
-  flex-shrink:0;
-}
+.rec-comp-row{display:grid;grid-template-columns:36px 1fr 200px 70px;gap:16px;align-items:center;padding:16px 18px;border-radius:18px;border:1.5px solid var(--border);background:var(--surface2);transition:all 0.2s;}
+.rec-comp-row.best{border-color:rgba(124,58,237,0.35);background:linear-gradient(135deg,rgba(124,58,237,0.05),rgba(168,85,247,0.04));box-shadow:0 4px 24px rgba(124,58,237,0.1);}
+.rec-comp-rank{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--muted);background:var(--surface);border:1.5px solid var(--border2);flex-shrink:0;}
 .rec-comp-row.best .rec-comp-rank{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;box-shadow:0 4px 12px rgba(124,58,237,0.3)}
-.rec-comp-info{}
 .rec-comp-name{font-size:15px;font-weight:600;color:var(--ink2);margin-bottom:3px;display:flex;align-items:center;gap:8px}
 .best-pill{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border-radius:50px;padding:2px 10px;font-size:10px;font-weight:700}
 .rec-comp-style{font-size:12px;color:var(--muted)}
@@ -454,7 +462,6 @@ header { padding:48px 0 32px; text-align:center; }
 .rec-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 1.3s cubic-bezier(.4,0,.2,1)}
 .rec-comp-score{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--accent);text-align:right}
 
-/* mobile */
 @media(max-width:680px){
   .rsb-meta-row{grid-template-columns:1fr 1fr}
   .rsb-meta-cell{border-right:none;border-bottom:1px solid rgba(255,255,255,0.1)}
@@ -464,11 +471,11 @@ header { padding:48px 0 32px; text-align:center; }
   .word-pct-col,.word-status-badge{font-size:14px}
   .rec-comp-row{grid-template-columns:32px 1fr 60px;grid-template-rows:auto auto}
   .rec-comp-bars{display:none}
+  .range-sliders{grid-template-columns:1fr}
+  .acb-arabic{display:none}
 }
 
-/* ══════════════════════════════
-   PLAYER & PROFILES
-══════════════════════════════ */
+/* ── PLAYER ── */
 .reciter-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
 .rcrd-card{ background:var(--surface);border-radius:22px;padding:22px 18px;border:1.5px solid var(--border);text-align:center;transition:all 0.3s;cursor:default;position:relative;overflow:hidden; }
 .rcrd-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(124,58,237,0.06),transparent);opacity:0;transition:opacity 0.3s}
@@ -500,9 +507,8 @@ header { padding:48px 0 32px; text-align:center; }
 .pp-time{font-size:12px;color:var(--muted);margin-top:4px}
 
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:580px){.two-col{grid-template-columns:1fr}.range-sliders{grid-template-columns:1fr}}
+@media(max-width:580px){.two-col{grid-template-columns:1fr}}
 
-/* toast */
 .toast{ position:fixed;bottom:28px;right:28px;background:var(--ink2);color:white;padding:14px 22px;border-radius:16px;font-size:14px;opacity:0;transform:translateY(14px);transition:all 0.3s;z-index:200;max-width:300px;box-shadow:0 10px 40px rgba(15,10,20,0.3); }
 .toast.show{opacity:1;transform:translateY(0)}
 .toast.success{background:linear-gradient(135deg,#065f46,#047857)}
@@ -527,12 +533,12 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
       <div class="pr-inner">🕌</div>
     </div>
     <h2 class="popup-title">Analysing Recitation…</h2>
-    <div class="popup-surah-tag" id="loading-tag">Surah 1 · Al-Fatiha</div>
+    <div class="popup-surah-tag" id="loading-tag">Surah 1 · Al-Fatiha · Ayah 1</div>
     <div class="popup-steps">
-      <div class="pstep" id="ps1"><div class="pstep-dot">1</div><span class="pstep-lbl">Transcribing your audio to Arabic</span><span class="pstep-tick">✓</span></div>
-      <div class="pstep" id="ps2"><div class="pstep-dot">2</div><span class="pstep-lbl">Identifying the ayah you recited</span><span class="pstep-tick">✓</span></div>
-      <div class="pstep" id="ps3"><div class="pstep-dot">3</div><span class="pstep-lbl">Comparing phoneme embeddings</span><span class="pstep-tick">✓</span></div>
-      <div class="pstep" id="ps4"><div class="pstep-dot">4</div><span class="pstep-lbl">Scoring tajweed &amp; pace</span><span class="pstep-tick">✓</span></div>
+      <div class="pstep" id="ps1"><div class="pstep-dot">1</div><span class="pstep-lbl" id="ps1-lbl">Loading selected ayah text</span><span class="pstep-tick">✓</span></div>
+      <div class="pstep" id="ps2"><div class="pstep-dot">2</div><span class="pstep-lbl">Comparing phoneme embeddings</span><span class="pstep-tick">✓</span></div>
+      <div class="pstep" id="ps3"><div class="pstep-dot">3</div><span class="pstep-lbl">Scoring against all 5 reciters</span><span class="pstep-tick">✓</span></div>
+      <div class="pstep" id="ps4"><div class="pstep-dot">4</div><span class="pstep-lbl">Calculating tajweed &amp; pace</span><span class="pstep-tick">✓</span></div>
     </div>
     <div class="popup-wave" aria-hidden="true">
       <div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div><div class="pw"></div>
@@ -561,7 +567,7 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
     <div class="header-meta">
       <div class="meta-pill"><div class="dot"></div><span>114 Surahs · 6236 Ayahs</span></div>
       <div class="meta-pill"><div class="dot"></div><span id="global-surah-pill">Surah 1 · Al-Fatiha selected</span></div>
-      <div class="meta-pill"><div class="dot"></div><span id="global-range-pill">All ayahs</span></div>
+      <div class="meta-pill"><div class="dot"></div><span id="global-ayah-pill">Ayah 1 selected</span></div>
     </div>
   </header>
 
@@ -581,8 +587,8 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
       <div class="card-header">
         <div class="card-icon">📖</div>
         <div>
-          <div class="card-title">Surah &amp; Ayah Range</div>
-          <div class="card-sub">Select a surah, then optionally narrow your practice to a specific ayah range</div>
+          <div class="card-title">Surah &amp; Ayah Selection</div>
+          <div class="card-sub">Select the surah, narrow your range, then pick the exact ayah you will recite</div>
         </div>
       </div>
 
@@ -602,9 +608,10 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
         <div class="sc-pill" id="sc-pill">Surah 1</div>
       </div>
 
+      <!-- Range section -->
       <div class="range-section" id="range-section">
         <div class="range-header">
-          <div class="range-title"><span>🎯</span> Ayah Range Selector</div>
+          <div class="range-title"><span>🎯</span> Practice Range</div>
           <div class="range-badge" id="range-badge">All 7 Ayahs</div>
         </div>
         <div class="range-presets" id="range-presets"></div>
@@ -634,15 +641,28 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
             <div class="range-ayah-lbl">To</div>
           </div>
         </div>
+
+        <!-- ══ AYAH PICKER — REDESIGNED ══ -->
+        <div class="ayah-picker-wrap">
+          <div class="ayah-picker-label-row">
+            <label class="field-label">
+              Which ayah will you recite?
+            </label>
+            <span class="ayah-path-tag">✦ We detect what you recite — selection is optional</span>
+          </div>
+          <select class="styled-select" id="ayah-select" onchange="onAyahSelect()"></select>
+          <div class="ayah-picker-info" id="ayah-picker-info">
+            <div class="api-num" id="api-num">1</div>
+            <div class="api-text" id="api-text">Loading…</div>
+          </div>
+        </div>
       </div>
 
+      <!-- Ayahs preview -->
       <div class="ayahs-preview">
-        <div class="ayahs-preview-title">Ayahs in selected range</div>
+        <div class="ayahs-preview-title">Ayahs in selected range — selected ayah is highlighted</div>
         <div class="ayahs-list" id="ayahs-list">
           <span style="color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px">Loading…</span>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:12px;text-align:center;letter-spacing:0.5px">
-          Recite <em>any one</em> ayah from this range — AI will auto-detect which one
         </div>
       </div>
     </div>
@@ -653,7 +673,7 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
         <div class="card-icon">🎙</div>
         <div>
           <div class="card-title">Your Recitation</div>
-          <div class="card-sub">Record or upload your audio for analysis</div>
+          <div class="card-sub">Record or upload — will be scored against the ayah shown in the banner below</div>
         </div>
       </div>
 
@@ -688,16 +708,26 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
         </div>
       </div>
 
+      <!-- ══ CONFIRMATION BANNER — always visible, shows exactly what will be scored ══ -->
+      <div class="ayah-confirm-banner" id="ayah-confirm-banner">
+        <div class="acb-icon">⚠️</div>
+        <div class="acb-main">
+          <div class="acb-title">Will score against</div>
+          <div class="acb-value" id="acb-value">Surah 1 (Al-Fatiha) · Ayah 1</div>
+        </div>
+        <div class="acb-arabic" id="acb-arabic">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
+        <div class="acb-warn">Make sure this matches the ayah you just recited before clicking Analyse</div>
+      </div>
+
       <button class="analyse-btn" id="analyse-btn" onclick="doAnalyse()" disabled>
-        <span>✨ Analyse — Auto-Detect Ayah &amp; Compare All 5 Reciters</span>
+        <span id="btn-main">✨ Analyse Ayah 1 Against All 5 Reciters</span>
         <span class="btn-sub" id="btn-sub">Select a surah to begin</span>
       </button>
     </div>
 
-    <!-- ══════════ RESULTS — REDESIGNED ══════════ -->
+    <!-- RESULTS -->
     <div class="results-section" id="results">
 
-      <!-- 1. Top Summary Banner -->
       <div class="result-summary-banner" id="rsb">
         <div class="rsb-top">
           <div class="rsb-trophy">🏆</div>
@@ -718,7 +748,7 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
             <div class="rsb-meta-sub" id="rsb-surah-num">–</div>
           </div>
           <div class="rsb-meta-cell">
-            <div class="rsb-meta-label">Ayah detected</div>
+            <div class="rsb-meta-label">Ayah scored</div>
             <div class="rsb-meta-value" id="rsb-ayah-num">–</div>
             <div id="rsb-auto-wrap"></div>
           </div>
@@ -736,17 +766,15 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
         <div class="rsb-arabic" id="rsb-arabic"></div>
       </div>
 
-      <!-- 2. Score Chips -->
       <div class="scores-strip" id="scores-strip"></div>
 
-      <!-- 3. Word-by-Word Table -->
       <div class="word-section-card">
         <div class="wsc-header">
           <div class="wsc-title-wrap">
             <div class="card-icon" style="width:36px;height:36px;border-radius:10px;font-size:16px">🔤</div>
             <div>
               <div class="card-title" style="font-size:18px">Word-by-word analysis</div>
-              <div class="card-sub">Each word in the order it was recited</div>
+              <div class="card-sub" id="wsc-ayah-sub">Each word scored against the selected ayah</div>
             </div>
           </div>
           <div class="wsc-legend">
@@ -763,12 +791,9 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
           <div style="text-align:center">Score</div>
           <div style="text-align:center">Status</div>
         </div>
-        <div class="word-table-body" id="words-table-body">
-          <!-- populated by JS -->
-        </div>
+        <div class="word-table-body" id="words-table-body"></div>
       </div>
 
-      <!-- 4. Reciter Comparison -->
       <div class="reciter-comp-card">
         <div class="rcc-header">
           <div class="card-icon" style="width:36px;height:36px;border-radius:10px;font-size:16px">📊</div>
@@ -777,13 +802,10 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
             <div class="card-sub">Your recitation scored against all 5 reciters simultaneously</div>
           </div>
         </div>
-        <div class="rcc-body" id="reciter-comp-body">
-          <!-- populated by JS -->
-        </div>
+        <div class="rcc-body" id="reciter-comp-body"></div>
       </div>
 
     </div><!-- /results -->
-
   </div><!-- /tab-checker -->
 
   <!-- ═══════════════ TAB 2: PLAYER ═══════════════ -->
@@ -822,7 +844,7 @@ footer{text-align:center;padding:36px 0 28px;color:var(--muted);font-size:12px;l
     <div class="card" style="margin-bottom:24px">
       <div class="card-header">
         <div class="card-icon">👤</div>
-        <div><div class="card-title">Renowned Reciters</div><div class="card-sub">Five masters of Quranic recitation — your style will be matched against all of them simultaneously</div></div>
+        <div><div class="card-title">Renowned Reciters</div><div class="card-sub">Five masters of Quranic recitation — your style will be matched against all simultaneously</div></div>
       </div>
     </div>
     <div class="reciter-cards-grid" id="profiles-grid"></div>
@@ -869,7 +891,6 @@ const SURAH_AR = [
   "هود","يوسف","الرعد","إبراهيم","الحجر","النحل","الإسراء","الكهف","مريم","طه","الأنبياء","الحج","المؤمنون","النور","الفرقان","الشعراء","النمل","القصص","العنكبوت","الروم","لقمان","السجدة","الأحزاب","سبأ","فاطر","يس","الصافات","ص","الزمر","غافر","فصلت","الشورى","الزخرف","الدخان","الجاثية","الأحقاف","محمد","الفتح","الحجرات","ق","الذاريات","الطور","النجم","القمر","الرحمن","الواقعة","الحديد","المجادلة","الحشر","الممتحنة","الصف","الجمعة","المنافقون","التغابن","الطلاق","التحريم","الملك","القلم","الحاقة","المعارج","نوح","الجن","المزمل","المدثر","القيامة","الإنسان","المرسلات","النبأ","النازعات","عبس","التكوير","الانفطار","المطففين","الانشقاق","البروج","الطارق","الأعلى","الغاشية","الفجر","البلد","الشمس","الليل","الضحى","الشرح","التين","العلق","القدر","البينة","الزلزلة","العاديات","القارعة","التكاثر","العصر","الهمزة","الفيل","قريش","الماعون","الكوثر","الكافرون","النصر","المسد","الإخلاص","الفلق","الناس"
 ];
 
-// Romanised word hints — used in demo. Backend should return these per word.
 const ROMAN_HINTS = {
   'الَّذِينَ':'al-ladhīna','يُؤْمِنُونَ':"yu'minūna",'بِالْغَيْبِ':'bil-ghaybi',
   'وَيُقِيمُونَ':'wa-yuqīmūna','الصَّلَاةَ':'aṣ-ṣalāta','بِسْمِ':'bismi',
@@ -887,6 +908,7 @@ const RECITERS = {
   "Minshawi":   { key:"minshawi",   style:"Mujawwad",pace:"Slow",     tajweed:"Strict",emoji:"🌙",desc:"Soulful traditional style with emotional depth.",  tags:["Spiritual","Traditional","Advanced"] },
   "Sudais":     { key:"sudais",     style:"Murattal",pace:"Mod. Fast",tajweed:"Standard",emoji:"🕋",desc:"Imam of Masjid al-Haram. Powerful and moving.", tags:["Prayer leaders","Confident","Expressive"] },
 };
+
 const TIPS = [
   {ar:"وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا",               en:'"Recite the Quran with measured recitation." (73:4)'},
   {ar:"خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ", en:'"The best of you are those who learn & teach the Quran." (Bukhari)'},
@@ -899,6 +921,7 @@ const TIPS = [
 // STATE
 // ══════════════════════════════════════════════════════
 let currentSurah = 1, rangeFrom = 1, rangeTo = 7;
+let currentAyah  = 1;   // Always in sync with the ayah-select DOM element
 let audioBlob = null, audioSource = 'none';
 let mediaRecorder, recChunks = [], recTimer, recSecs = 0;
 let isRecording = false;
@@ -911,12 +934,12 @@ const ayahCache = {}, surahCache = {};
 // ══════════════════════════════════════════════════════
 const Loader = (() => {
   const STEPS=[
-    {id:'ps1',actAt:0,    doneAt:2300},
-    {id:'ps2',actAt:2300, doneAt:4000},
-    {id:'ps3',actAt:4000, doneAt:6500},
-    {id:'ps4',actAt:6500, doneAt:99999},
+    {id:'ps1',actAt:0,    doneAt:600},
+    {id:'ps2',actAt:600,  doneAt:2000},
+    {id:'ps3',actAt:2000, doneAt:4000},
+    {id:'ps4',actAt:4000, doneAt:99999},
   ];
-  const PROGS=[{at:0,p:4},{at:700,p:18},{at:2300,p:36},{at:4000,p:55},{at:6500,p:77},{at:8500,p:91}];
+  const PROGS=[{at:0,p:5},{at:600,p:25},{at:2000,p:55},{at:4000,p:80},{at:6000,p:93}];
   let _t=[], _tipI=0, _tipTimer=null;
   const el=id=>document.getElementById(id);
   const setStep=(id,st)=>{const s=el(id);if(!s)return;s.classList.remove('ps-active','ps-done');if(st)s.classList.add('ps-'+st);};
@@ -932,7 +955,10 @@ const Loader = (() => {
     clearAll();_tipI=0;
     STEPS.forEach(({id})=>setStep(id,''));setProg(0);rotateTip(0);
     _tipTimer=setInterval(()=>{_tipI++;rotateTip(_tipI);},4000);
-    STEPS.forEach(({id,actAt,doneAt})=>{_t.push(setTimeout(()=>setStep(id,'active'),actAt));_t.push(setTimeout(()=>setStep(id,'done'),doneAt));});
+    STEPS.forEach(({id,actAt,doneAt})=>{
+      _t.push(setTimeout(()=>setStep(id,'active'),actAt));
+      _t.push(setTimeout(()=>setStep(id,'done'),doneAt));
+    });
     PROGS.forEach(({at,p})=>_t.push(setTimeout(()=>setProg(p),at)));
     const ov=el('loading');if(ov){ov.style.animation='';ov.classList.add('show');}
   };
@@ -956,100 +982,130 @@ window.onload = () => {
   buildProfileCards();
   buildPlayerReciterBtns();
   currentSurah = 1;
+  currentAyah  = 1;
   updateSurahUI();
   loadSurahAyahs(1);
-  fetchPlayerAyah(1,1);
+  fetchPlayerAyah(1, 1);
 };
 
 // ══════════════════════════════════════════════════════
 // SURAH CHANGE
 // ══════════════════════════════════════════════════════
 function onSurahChange(){
-  currentSurah = parseInt(document.getElementById('surah-select').value,10);
-  const total = SURAH_AYAHS[currentSurah-1]||1;
-  rangeFrom = 1; rangeTo = total;
+  currentSurah = parseInt(document.getElementById('surah-select').value, 10);
+  const total  = SURAH_AYAHS[currentSurah - 1] || 1;
+  rangeFrom = 1; rangeTo = total; currentAyah = 1;
   updateSurahUI();
   buildRangeUI(currentSurah);
   loadSurahAyahs(currentSurah);
 }
 
 function updateSurahUI(){
-  const s=currentSurah, n=SURAH_NAMES[s-1]||'', ar=SURAH_AR[s-1]||'', cnt=SURAH_AYAHS[s-1]||'?';
+  const s = currentSurah;
+  const n = SURAH_NAMES[s-1] || '';
+  const ar = SURAH_AR[s-1] || '';
+  const cnt = SURAH_AYAHS[s-1] || '?';
   document.getElementById('sc-name').textContent  = `${n} (${ar})`;
   document.getElementById('sc-sub').textContent   = `Surah ${s} · ${cnt} Ayahs`;
   document.getElementById('sc-pill').textContent  = `Surah ${s}`;
-  document.getElementById('btn-sub').textContent  = `Selected: Surah ${s} · ${n} · Ayahs ${rangeFrom}–${rangeTo}`;
   document.getElementById('global-surah-pill').textContent = `Surah ${s} · ${n} selected`;
-  document.getElementById('loading-tag').textContent = `Surah ${s} · ${n}`;
-  updateRangePillLabel();
+  updateButtonLabel();
 }
 
-function updateRangePillLabel(){
-  const total=SURAH_AYAHS[currentSurah-1]||1;
-  if(rangeFrom===1&&rangeTo===total){
-    document.getElementById('global-range-pill').textContent='All ayahs';
-  } else {
-    document.getElementById('global-range-pill').textContent=`Ayahs ${rangeFrom}–${rangeTo} (${rangeTo-rangeFrom+1} ayahs)`;
+// ══════════════════════════════════════════════════════
+// UPDATE BUTTON LABEL + CONFIRMATION BANNER
+// Called every time currentSurah or currentAyah changes
+// ══════════════════════════════════════════════════════
+function updateButtonLabel(){
+  const n = SURAH_NAMES[currentSurah - 1] || '';
+
+  // Main button text
+  document.getElementById('btn-main').textContent =
+    `✨ Analyse Surah ${currentSurah} · Ayah ${currentAyah} Against All 5 Reciters`;
+  document.getElementById('btn-sub').textContent  =
+    `${n} · PATH A — exact scoring, Whisper skipped`;
+
+  // Header pill
+  document.getElementById('global-ayah-pill').textContent = `Ayah ${currentAyah} selected`;
+
+  // Loading popup tag
+  document.getElementById('loading-tag').textContent =
+    `Surah ${currentSurah} · ${n} · Ayah ${currentAyah}`;
+
+  // ── CONFIRMATION BANNER — the main fix ───────────────
+  document.getElementById('acb-value').textContent =
+    `Surah ${currentSurah} (${n}) · Ayah ${currentAyah}`;
+
+  // Show arabic text in banner if cached
+  const cachedText = ayahCache[`${currentSurah}_${currentAyah}`];
+  const arabicEl   = document.getElementById('acb-arabic');
+  if(arabicEl){
+    arabicEl.textContent = cachedText || '…';
+    if(!cachedText){
+      fetchAyahText(currentSurah, currentAyah).then(t => {
+        if(t) arabicEl.textContent = t;
+      });
+    }
   }
-  document.getElementById('btn-sub').textContent=`Surah ${currentSurah} · ${SURAH_NAMES[currentSurah-1]} · Ayahs ${rangeFrom}–${rangeTo}`;
 }
 
 // ══════════════════════════════════════════════════════
 // RANGE UI
 // ══════════════════════════════════════════════════════
 function buildRangeUI(surah){
-  const total = SURAH_AYAHS[surah-1]||1;
-  const fromSel=document.getElementById('range-from');
-  const toSel  =document.getElementById('range-to');
-  fromSel.innerHTML=''; toSel.innerHTML='';
-  for(let i=1;i<=total;i++){
-    fromSel.innerHTML+=`<option value="${i}" ${i===1?'selected':''}>Ayah ${i}</option>`;
-    toSel.innerHTML  +=`<option value="${i}" ${i===total?'selected':''}>Ayah ${i}</option>`;
+  const total = SURAH_AYAHS[surah - 1] || 1;
+  const fromSel = document.getElementById('range-from');
+  const toSel   = document.getElementById('range-to');
+  fromSel.innerHTML = ''; toSel.innerHTML = '';
+  for(let i = 1; i <= total; i++){
+    fromSel.innerHTML += `<option value="${i}" ${i===1?'selected':''}>Ayah ${i}</option>`;
+    toSel.innerHTML   += `<option value="${i}" ${i===total?'selected':''}>Ayah ${i}</option>`;
   }
-  rangeFrom=1; rangeTo=total;
+  rangeFrom = 1; rangeTo = total;
   buildPresets(total);
+  buildAyahPicker();
   updateRangeDisplay();
 }
 
 function buildPresets(total){
   const presets = [];
-  presets.push({label:'All',from:1,to:total});
-  if(total>4)  presets.push({label:'First Half',  from:1,               to:Math.floor(total/2)});
-  if(total>4)  presets.push({label:'Second Half', from:Math.floor(total/2)+1, to:total});
-  if(total>=20){
-    presets.push({label:'First 10',  from:1,  to:10});
-    presets.push({label:'11–20',     from:11, to:Math.min(20,total)});
-  }
-  if(total>=5) presets.push({label:'First 5', from:1, to:Math.min(5,total)});
-  if(total>=10&&total<20) presets.push({label:'First 10',from:1,to:Math.min(10,total)});
-  const el=document.getElementById('range-presets');
-  el.innerHTML='';
-  presets.forEach((p,i)=>{
-    const btn=document.createElement('button');
-    btn.className='preset-btn'+(i===0?' active':'');
-    btn.textContent=p.label;
-    btn.dataset.from=p.from; btn.dataset.to=p.to;
-    btn.onclick=()=>applyPreset(p.from,p.to,btn);
+  presets.push({label:'All', from:1, to:total});
+  if(total > 4)  presets.push({label:'First Half',  from:1,                    to:Math.floor(total/2)});
+  if(total > 4)  presets.push({label:'Second Half', from:Math.floor(total/2)+1, to:total});
+  if(total >= 20){presets.push({label:'First 10', from:1, to:10}); presets.push({label:'11–20', from:11, to:Math.min(20,total)});}
+  if(total >= 5)  presets.push({label:'First 5', from:1, to:Math.min(5,total)});
+  if(total >= 10 && total < 20) presets.push({label:'First 10', from:1, to:Math.min(10,total)});
+  const el = document.getElementById('range-presets');
+  el.innerHTML = '';
+  presets.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = p.label;
+    btn.dataset.from = p.from;
+    btn.dataset.to   = p.to;
+    btn.onclick = () => applyPreset(p.from, p.to, btn);
     el.appendChild(btn);
   });
 }
 
-function applyPreset(from,to,btn){
-  rangeFrom=from; rangeTo=to;
-  document.getElementById('range-from').value=from;
-  document.getElementById('range-to').value=to;
-  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+function applyPreset(from, to, btn){
+  rangeFrom = from; rangeTo = to;
+  document.getElementById('range-from').value = from;
+  document.getElementById('range-to').value   = to;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
+  buildAyahPicker();
   updateRangeDisplay();
   updateSurahUI();
   loadSurahAyahs(currentSurah);
 }
 
 function onRangeChange(){
-  rangeFrom = parseInt(document.getElementById('range-from').value,10);
-  rangeTo   = parseInt(document.getElementById('range-to').value,10);
-  if(rangeTo<rangeFrom){ rangeTo=rangeFrom; document.getElementById('range-to').value=rangeTo; }
-  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  rangeFrom = parseInt(document.getElementById('range-from').value, 10);
+  rangeTo   = parseInt(document.getElementById('range-to').value,   10);
+  if(rangeTo < rangeFrom){ rangeTo = rangeFrom; document.getElementById('range-to').value = rangeTo; }
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  buildAyahPicker();
   updateRangeDisplay();
   updateSurahUI();
   loadSurahAyahs(currentSurah);
@@ -1057,12 +1113,83 @@ function onRangeChange(){
 
 function updateRangeDisplay(){
   const count = rangeTo - rangeFrom + 1;
-  document.getElementById('rd-from').textContent = rangeFrom;
-  document.getElementById('rd-to').textContent   = rangeTo;
-  document.getElementById('rd-count').textContent= count;
+  document.getElementById('rd-from').textContent  = rangeFrom;
+  document.getElementById('rd-to').textContent    = rangeTo;
+  document.getElementById('rd-count').textContent = count;
   document.getElementById('range-badge').textContent =
-    (count===SURAH_AYAHS[currentSurah-1]) ? `All ${count} Ayahs` : `${count} Ayah${count!==1?'s':''}`;
-  updateRangePillLabel();
+    (count === SURAH_AYAHS[currentSurah-1]) ? `All ${count} Ayahs` : `${count} Ayah${count !== 1 ? 's' : ''}`;
+}
+
+// ══════════════════════════════════════════════════════
+// AYAH PICKER — CORE FIX
+//
+// Rules:
+//  1. Always build options from rangeFrom → rangeTo
+//  2. Preserve currentAyah if it's still inside the range
+//  3. Only reset currentAyah to rangeFrom if it's outside
+//  4. Set sel.value AFTER all options are appended
+//  5. Always call updateButtonLabel() at the end
+// ══════════════════════════════════════════════════════
+function buildAyahPicker(){
+  const sel = document.getElementById('ayah-select');
+  if(!sel) return;
+
+  // Step 1: Build all options first
+  sel.innerHTML = '';
+  for(let i = rangeFrom; i <= rangeTo; i++){
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = `Ayah ${i}`;
+    sel.appendChild(opt);
+  }
+
+  // Step 2: Clamp currentAyah to range — only reset if truly outside
+  if(currentAyah < rangeFrom || currentAyah > rangeTo){
+    currentAyah = rangeFrom;
+  }
+
+  // Step 3: Sync the DOM select to currentAyah (AFTER options exist)
+  sel.value = String(currentAyah);
+
+  // Step 4: Update the info panel and banner
+  updateAyahPickerInfo();
+  updateButtonLabel();
+}
+
+function onAyahSelect(){
+  // Read directly from DOM — the single source of truth
+  const sel = document.getElementById('ayah-select');
+  currentAyah = parseInt(sel.value, 10);
+  updateAyahPickerInfo();
+  updateButtonLabel();
+  // Re-render preview to move the highlight
+  renderAyahsList(currentSurah);
+}
+
+function updateAyahPickerInfo(){
+  const numEl  = document.getElementById('api-num');
+  const textEl = document.getElementById('api-text');
+  if(numEl)  numEl.textContent = currentAyah;
+  if(textEl){
+    const cached = ayahCache[`${currentSurah}_${currentAyah}`];
+    if(cached){
+      textEl.textContent = cached;
+      textEl.classList.remove('loading');
+    } else {
+      textEl.textContent = 'Loading…';
+      textEl.classList.add('loading');
+      fetchAyahText(currentSurah, currentAyah).then(t => {
+        if(t){
+          textEl.textContent = t;
+          textEl.classList.remove('loading');
+          ayahCache[`${currentSurah}_${currentAyah}`] = t;
+          // Also update banner once loaded
+          const arabicEl = document.getElementById('acb-arabic');
+          if(arabicEl && arabicEl.textContent === '…') arabicEl.textContent = t;
+        }
+      });
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1070,94 +1197,129 @@ function updateRangeDisplay(){
 // ══════════════════════════════════════════════════════
 async function loadSurahAyahs(surah){
   const listEl = document.getElementById('ayahs-list');
-  listEl.innerHTML='<span style="color:var(--muted);font-family:Outfit,sans-serif;font-size:13px">Loading…</span>';
+  listEl.innerHTML = '<span style="color:var(--muted);font-family:Outfit,sans-serif;font-size:13px">Loading…</span>';
   if(!surahCache[surah]){
-    try {
-      const r=await fetch(`${BACKEND}/api/ayahs/surah/${surah}?limit=0`);
-      if(r.ok){const d=await r.json();if(d.ayahs){surahCache[surah]=d.ayahs;d.ayahs.forEach(a=>ayahCache[`${surah}_${a.ayah}`]=a.text);}}
+    try{
+      const r = await fetch(`${BACKEND}/api/ayahs/surah/${surah}?limit=0`);
+      if(r.ok){
+        const d = await r.json();
+        if(d.ayahs){
+          surahCache[surah] = d.ayahs;
+          d.ayahs.forEach(a => { ayahCache[`${surah}_${a.ayah}`] = a.text; });
+        }
+      }
     } catch(e){}
   }
   renderAyahsList(surah);
+  // Refresh picker info with real text
+  updateAyahPickerInfo();
+  updateButtonLabel(); // banner arabic text may now be available
 }
 
 function renderAyahsList(surah){
-  const listEl=document.getElementById('ayahs-list');
-  const rows = surahCache[surah]||[];
-  const filtered = rows.filter(r=>r.ayah>=rangeFrom&&r.ayah<=rangeTo);
-  if(!filtered.length){
-    listEl.innerHTML='<span style="color:var(--muted);font-family:Outfit,sans-serif;font-size:13px;direction:ltr">Connect backend (python Recitors_v4.py) to load ayah text</span>';
+  const listEl = document.getElementById('ayahs-list');
+  const rows = (surahCache[surah] || []).filter(r => r.ayah >= rangeFrom && r.ayah <= rangeTo);
+  if(!rows.length){
+    listEl.innerHTML = '<span style="color:var(--muted);font-family:Outfit,sans-serif;font-size:13px;direction:ltr">Connect backend to load ayah text</span>';
     return;
   }
-  listEl.innerHTML = filtered.map(r=>
-    `<span class="ayah-number-badge">${r.ayah}</span>${r.text} `
-  ).join('<br>');
+  // Highlight the currently selected ayah clearly
+  listEl.innerHTML = rows.map(r => {
+    const isSelected = (r.ayah === currentAyah);
+    const badge = `<span class="ayah-number-badge">${r.ayah}</span>`;
+    if(isSelected){
+      return `<span class="ayah-row-selected">${badge}${r.text}</span> `;
+    }
+    return `<span>${badge}${r.text}</span> `;
+  }).join('<br>');
 }
 
-async function fetchAyahText(surah,ayah){
-  const key=`${surah}_${ayah}`;
+async function fetchAyahText(surah, ayah){
+  const key = `${surah}_${ayah}`;
   if(ayahCache[key]) return ayahCache[key];
   try{
-    const r=await fetch(`${BACKEND}/api/ayah/by_surah?surah=${surah}&ayah=${ayah}`);
-    if(r.ok){const d=await r.json();if(d.text){ayahCache[key]=d.text;return d.text;}}
-  }catch(e){}
+    const r = await fetch(`${BACKEND}/api/ayah/by_surah?surah=${surah}&ayah=${ayah}`);
+    if(r.ok){
+      const d = await r.json();
+      if(d.text){ ayahCache[key] = d.text; return d.text; }
+    }
+  } catch(e){}
   return null;
 }
 
-async function fetchPlayerAyah(surah,ayah){
-  const txt=await fetchAyahText(surah,ayah);
-  document.getElementById('pl-ayah-text').textContent=txt||'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
-  document.getElementById('pl-ayah-ref').textContent=`Surah ${SURAH_NAMES[surah-1]} · Ayah ${ayah}`;
+async function fetchPlayerAyah(surah, ayah){
+  const txt = await fetchAyahText(surah, ayah);
+  document.getElementById('pl-ayah-text').textContent = txt || 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
+  document.getElementById('pl-ayah-ref').textContent  = `Surah ${SURAH_NAMES[surah-1]} · Ayah ${ayah}`;
 }
 
 // ══════════════════════════════════════════════════════
 // SELECTS
 // ══════════════════════════════════════════════════════
 function populateSurahSelects(){
-  ['surah-select','pl-surah'].forEach(id=>{
-    const s=document.getElementById(id);s.innerHTML='';
-    SURAH_NAMES.forEach((n,i)=>{const o=document.createElement('option');o.value=i+1;o.textContent=`${i+1}. ${n}`;s.appendChild(o);});
+  ['surah-select', 'pl-surah'].forEach(id => {
+    const s = document.getElementById(id);
+    s.innerHTML = '';
+    SURAH_NAMES.forEach((n, i) => {
+      const o = document.createElement('option');
+      o.value = i + 1;
+      o.textContent = `${i+1}. ${n}`;
+      s.appendChild(o);
+    });
   });
   buildRangeUI(1);
-  populateAyahSel('pl-ayah',1);
+  populateAyahSel('pl-ayah', 1);
 }
 
-function populateAyahSel(id,surah){
-  const s=document.getElementById(id);s.innerHTML='';
-  const c=SURAH_AYAHS[surah-1]||7;
-  for(let i=1;i<=c;i++){const o=document.createElement('option');o.value=i;o.textContent=`Ayah ${i}`;s.appendChild(o);}
+function populateAyahSel(id, surah){
+  const s = document.getElementById(id);
+  s.innerHTML = '';
+  const c = SURAH_AYAHS[surah-1] || 7;
+  for(let i = 1; i <= c; i++){
+    const o = document.createElement('option');
+    o.value = i; o.textContent = `Ayah ${i}`;
+    s.appendChild(o);
+  }
 }
 
 // ══════════════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════════════
-function switchTab(e,name){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
+function switchTab(e, name){
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
   e.target.classList.add('active');
 }
-function switchAudioTab(e,name){
-  document.querySelectorAll('.audio-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.audio-tab').forEach(b=>b.classList.remove('active'));
-  document.getElementById('ap-'+name).classList.add('active');
+function switchAudioTab(e, name){
+  document.querySelectorAll('.audio-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.audio-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('ap-' + name).classList.add('active');
   e.target.classList.add('active');
 }
 function onPlSurahChange(){
-  const s=parseInt(document.getElementById('pl-surah').value,10);
-  populateAyahSel('pl-ayah',s);fetchPlayerAyah(s,1);
+  const s = parseInt(document.getElementById('pl-surah').value, 10);
+  populateAyahSel('pl-ayah', s);
+  fetchPlayerAyah(s, 1);
 }
 function onPlAyahChange(){
-  const s=parseInt(document.getElementById('pl-surah').value,10);
-  const a=parseInt(document.getElementById('pl-ayah').value,10);
-  fetchPlayerAyah(s,a);
+  const s = parseInt(document.getElementById('pl-surah').value, 10);
+  const a = parseInt(document.getElementById('pl-ayah').value,  10);
+  fetchPlayerAyah(s, a);
 }
 
 // ══════════════════════════════════════════════════════
 // WAVEFORM
 // ══════════════════════════════════════════════════════
 function buildWaveform(){
-  const w=document.getElementById('waveform');w.innerHTML='';
-  for(let i=0;i<40;i++){const b=document.createElement('div');b.className='wave-bar';b.style.height='8px';w.appendChild(b);}
+  const w = document.getElementById('waveform');
+  w.innerHTML = '';
+  for(let i = 0; i < 40; i++){
+    const b = document.createElement('div');
+    b.className = 'wave-bar';
+    b.style.height = '8px';
+    w.appendChild(b);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1166,195 +1328,276 @@ function buildWaveform(){
 async function toggleRecord(){ if(!isRecording) await startRec(); else stopRec(); }
 async function startRec(){
   try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
-    audioCtx=new AudioContext();analyser=audioCtx.createAnalyser();analyser.fftSize=128;
-    const src=audioCtx.createMediaStreamSource(micStream);src.connect(analyser);
-    mediaRecorder=new MediaRecorder(micStream);recChunks=[];
-    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data)};
-    mediaRecorder.onstop=onRecStop;
-    mediaRecorder.start(100);isRecording=true;recSecs=0;
+    micStream = await navigator.mediaDevices.getUserMedia({audio: true});
+    audioCtx  = new AudioContext();
+    analyser  = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    const src = audioCtx.createMediaStreamSource(micStream);
+    src.connect(analyser);
+    mediaRecorder = new MediaRecorder(micStream);
+    recChunks     = [];
+    mediaRecorder.ondataavailable = e => { if(e.data.size > 0) recChunks.push(e.data); };
+    mediaRecorder.onstop = onRecStop;
+    mediaRecorder.start(100);
+    isRecording = true; recSecs = 0;
     document.getElementById('record-btn').classList.add('recording');
-    document.getElementById('record-btn').textContent='⏹';
-    document.getElementById('rec-status').textContent='Recording… tap to stop';
+    document.getElementById('record-btn').textContent = '⏹';
+    document.getElementById('rec-status').textContent = 'Recording… tap to stop';
     document.getElementById('rec-preview').classList.remove('show');
-    recTimer=setInterval(()=>{recSecs++;const m=Math.floor(recSecs/60),s=recSecs%60;document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;},1000);
+    recTimer = setInterval(() => {
+      recSecs++;
+      const m = Math.floor(recSecs / 60), s = recSecs % 60;
+      document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    }, 1000);
     animWave();
-  }catch(e){showToast('Microphone access denied','error');}
+  } catch(e){ showToast('Microphone access denied', 'error'); }
 }
 function stopRec(){
-  if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();
-  if(micStream)micStream.getTracks().forEach(t=>t.stop());
-  clearInterval(recTimer);cancelAnimationFrame(waveFrame);
-  isRecording=false;
+  if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if(micStream) micStream.getTracks().forEach(t => t.stop());
+  clearInterval(recTimer);
+  cancelAnimationFrame(waveFrame);
+  isRecording = false;
   document.getElementById('record-btn').classList.remove('recording');
-  document.getElementById('record-btn').textContent='🎙';
-  document.getElementById('rec-status').textContent='Recording saved ✓';
+  document.getElementById('record-btn').textContent = '🎙';
+  document.getElementById('rec-status').textContent = 'Recording saved ✓';
   flatWave();
 }
 function onRecStop(){
-  audioBlob=new Blob(recChunks,{type:'audio/webm'});
-  const url=URL.createObjectURL(audioBlob);
-  document.getElementById('rec-audio').src=url;
+  audioBlob = new Blob(recChunks, {type: 'audio/webm'});
+  const url = URL.createObjectURL(audioBlob);
+  document.getElementById('rec-audio').src = url;
   document.getElementById('rec-preview').classList.add('show');
-  document.getElementById('rec-name').textContent=`Recording — ${document.getElementById('timer').textContent}`;
-  audioSource='record';checkReady();
+  document.getElementById('rec-name').textContent = `Recording — ${document.getElementById('timer').textContent}`;
+  audioSource = 'record';
+  checkReady();
 }
 function animWave(){
-  const bars=document.querySelectorAll('.wave-bar'),data=new Uint8Array(analyser.fftSize);
-  function up(){analyser.getByteTimeDomainData(data);bars.forEach((b,i)=>{const idx=Math.floor(i*data.length/bars.length),v=Math.abs(data[idx]-128)/128;b.style.height=(8+v*44)+'px';b.style.opacity=0.4+v*0.6;});waveFrame=requestAnimationFrame(up);}up();
+  const bars = document.querySelectorAll('.wave-bar');
+  const data = new Uint8Array(analyser.fftSize);
+  function up(){
+    analyser.getByteTimeDomainData(data);
+    bars.forEach((b, i) => {
+      const idx = Math.floor(i * data.length / bars.length);
+      const v   = Math.abs(data[idx] - 128) / 128;
+      b.style.height  = (8 + v * 44) + 'px';
+      b.style.opacity = 0.4 + v * 0.6;
+    });
+    waveFrame = requestAnimationFrame(up);
+  }
+  up();
 }
-function flatWave(){document.querySelectorAll('.wave-bar').forEach(b=>{b.style.height='8px';b.style.opacity='0.3';});}
+function flatWave(){
+  document.querySelectorAll('.wave-bar').forEach(b => {
+    b.style.height  = '8px';
+    b.style.opacity = '0.3';
+  });
+}
 
 // ══════════════════════════════════════════════════════
 // FILE UPLOAD
 // ══════════════════════════════════════════════════════
 function handleUpload(e){
-  const f=e.target.files[0];if(!f)return;
-  audioBlob=f;
-  const url=URL.createObjectURL(f);
-  document.getElementById('up-audio').src=url;
-  document.getElementById('up-name').textContent=f.name;
+  const f = e.target.files[0]; if(!f) return;
+  audioBlob = f;
+  const url = URL.createObjectURL(f);
+  document.getElementById('up-audio').src = url;
+  document.getElementById('up-name').textContent = f.name;
   document.getElementById('up-preview').classList.add('show');
-  audioSource='upload';checkReady();showToast('File loaded ✓','success');
+  audioSource = 'upload';
+  checkReady();
+  showToast('File loaded ✓', 'success');
 }
-function dragOver(e){e.preventDefault();document.getElementById('upload-zone').classList.add('drag');}
-function dragLeave(){document.getElementById('upload-zone').classList.remove('drag');}
-function dropFile(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)handleUpload({target:{files:[f]}});}
-function checkReady(){ document.getElementById('analyse-btn').disabled=audioSource==='none'; }
+function dragOver(e){ e.preventDefault(); document.getElementById('upload-zone').classList.add('drag'); }
+function dragLeave(){ document.getElementById('upload-zone').classList.remove('drag'); }
+function dropFile(e){ e.preventDefault(); dragLeave(); const f = e.dataTransfer.files[0]; if(f) handleUpload({target:{files:[f]}}); }
+function checkReady(){
+  document.getElementById('analyse-btn').disabled = (audioSource === 'none');
+}
 
 // ══════════════════════════════════════════════════════
-// ANALYSE
+// ANALYSE — THE BULLETPROOF VERSION
+//
+// FIXES applied here:
+//  1. Read currentSurah and currentAyah from DOM at call time
+//  2. Validate against SURAH_AYAHS before sending
+//  3. ayah= is ALWAYS appended to FormData (PATH A)
+//  4. Console confirms what is being sent
 // ══════════════════════════════════════════════════════
 async function doAnalyse(){
-  if(!audioBlob) return showToast('Please record or upload audio first','error');
-  currentSurah = parseInt(document.getElementById('surah-select').value,10);
+  if(!audioBlob) return showToast('Please record or upload audio first', 'error');
+
+  // ── FIX: Read from DOM at the last possible moment ──────────
+  const surahEl = document.getElementById('surah-select');
+  const ayahEl  = document.getElementById('ayah-select');
+
+  currentSurah = surahEl ? (parseInt(surahEl.value, 10) || 1) : currentSurah;
+  currentAyah  = ayahEl  ? (parseInt(ayahEl.value,  10) || 1) : currentAyah;
+
+  // ── FIX: Validate range before sending ──────────────────────
+  const totalAyahs = SURAH_AYAHS[currentSurah - 1] || 1;
+  if(currentAyah < 1 || currentAyah > totalAyahs){
+    showToast(`Ayah ${currentAyah} is out of range for Surah ${currentSurah} (max: ${totalAyahs})`, 'error');
+    return;
+  }
+
+  console.log(`[ANALYSE] Sending: surah=${currentSurah}, ayah=${currentAyah}`);
+
   updateSurahUI();
   Loader.show();
   document.getElementById('results').classList.remove('show');
 
-  const form=new FormData();
-  form.append('audio', audioBlob, audioSource==='upload'?(audioBlob.name||'audio.webm'):'recording.webm');
-  form.append('surah', String(currentSurah));
+  const form = new FormData();
+  form.append('audio',      audioBlob,
+              audioSource === 'upload' ? (audioBlob.name || 'audio.webm') : 'recording.webm');
+  form.append('surah',      String(currentSurah));
+  form.append('ayah',       String(currentAyah));   // ← ALWAYS sent, never omitted
   form.append('range_from', String(rangeFrom));
   form.append('range_to',   String(rangeTo));
-  form.append('user_id', getUserId());
+  form.append('user_id',    getUserId());
 
   try{
-    const r=await fetch(`${BACKEND}/api/analyse`,{method:'POST',body:form});
-    if(!r.ok) throw new Error(`${r.status}`);
-    const d=await r.json();
-    Loader.hide();setTimeout(()=>showResults(d),400);
-  }catch(e){
-    console.warn('Backend unavailable, demo mode:',e.message);
-    Loader.hide();setTimeout(()=>showResults(genDemo()),400);
+    const r = await fetch(`${BACKEND}/api/analyse`, {method:'POST', body:form});
+    let d;
+    try { d = await r.json(); } catch { d = {}; }
+    if(!r.ok || d.error){
+      const msg = d.error || (r.status === 0
+        ? 'Cannot reach the server. Run: python Recitors.py'
+        : `Server error (${r.status})`);
+      throw new Error(msg);
+    }
+    Loader.hide();
+    setTimeout(() => showResults(d), 400);
+  } catch(e){
+    console.error('[ANALYSE] Failed:', e.message);
+    Loader.hide();
+    const msg = e.message || 'Could not analyse your recording.';
+    const hint = (msg.includes('fetch') || msg.includes('reach') || msg.includes('Failed to fetch'))
+      ? ' Make sure the server is running (python Recitors.py).'
+      : '';
+    showToast(msg + hint, 'error');
   }
 }
 
 function getUserId(){
-  let id=localStorage.getItem('qpc_uid');
-  if(!id){id='u'+Math.random().toString(36).slice(2,10);localStorage.setItem('qpc_uid',id);}
+  let id = localStorage.getItem('qpc_uid');
+  if(!id){ id = 'u' + Math.random().toString(36).slice(2,10); localStorage.setItem('qpc_uid', id); }
   return id;
 }
 
 // ══════════════════════════════════════════════════════
-// DEMO RESULTS
+// DEMO RESULTS — always uses currentSurah + currentAyah
 // ══════════════════════════════════════════════════════
 function genDemo(){
-  const names=Object.keys(RECITERS);
-  const scores=names.map(n=>({n,s:Math.round(55+Math.random()*40)})).sort((a,b)=>b.s-a.s);
-  const best=scores[0];
-  const demoAyah=rangeFrom+Math.floor(Math.random()*(rangeTo-rangeFrom+1));
-  const cached=ayahCache[`${currentSurah}_${demoAyah}`];
-  // sample words for demo
-  const demoWords=['الَّذِينَ','يُؤْمِنُونَ','بِالْغَيْبِ','وَيُقِيمُونَ','الصَّلَاةَ'];
-  const words=cached?cached.split(' '):demoWords;
-  const wrs=words.map((w,i)=>{
-    const p=Math.round(48+Math.random()*52);
-    return{
-      word:w,
-      romanised:ROMAN_HINTS[w]||`word-${i+1}`,
-      correct_pct:p,error_pct:100-p,
-      status:p>=82?'correct':p>=55?'slight':'wrong',
-      confidence:p>=80?'High':p>=55?'Medium':'Low',
-      error_types:p<82?['Phoneme mismatch']:[],
-      tajweed:[],start_ms:i*800,end_ms:(i+1)*800
+  const names  = Object.keys(RECITERS);
+  const scores = names.map(n => ({n, s: Math.round(55 + Math.random() * 40)})).sort((a,b) => b.s - a.s);
+  const best   = scores[0];
+  const cached = ayahCache[`${currentSurah}_${currentAyah}`];
+  const words  = cached ? cached.split(' ') : ['بِسْمِ','اللَّهِ','الرَّحْمَٰنِ','الرَّحِيمِ'];
+  const wrs = words.map((w, i) => {
+    const p = Math.round(48 + Math.random() * 52);
+    return {
+      word: w, romanised: ROMAN_HINTS[w] || '',
+      correct_pct: p, error_pct: 100 - p,
+      status: p >= 82 ? 'correct' : p >= 55 ? 'slight' : 'wrong',
+      confidence: p >= 80 ? 'High' : p >= 55 ? 'Medium' : 'Low',
+      error_types: p < 82 ? ['Phoneme mismatch'] : [],
+      tajweed: [],
+      start_ms: i * 800, end_ms: (i+1) * 800
     };
   });
-  const avg=Math.round(wrs.reduce((s,w)=>s+w.correct_pct,0)/wrs.length);
-  return{
-    best_reciter:best.n,best_reciter_score:best.s,word_results:wrs,
-    detected_ayah:{surah:currentSurah,ayah:demoAyah,text:cached||'',auto_detected:true},
-    ayah_summary:{
-      average_correct_pct:avg,average_error_pct:100-avg,total_words:words.length,
-      correct_words:wrs.filter(w=>w.status==='correct').length,
-      slight_error_words:wrs.filter(w=>w.status==='slight').length,
-      wrong_words_count:wrs.filter(w=>w.status==='wrong').length,
-      words_needing_work:wrs.filter(w=>w.status!=='correct').map(w=>w.word),
-      overall_confidence:avg>=80?'High':avg>=55?'Medium':'Low'
+  const avg = Math.round(wrs.reduce((s,w) => s + w.correct_pct, 0) / wrs.length);
+  return {
+    best_reciter: best.n,
+    best_reciter_score: best.s,
+    word_results: wrs,
+    detected_ayah: {
+      surah: currentSurah,
+      ayah:  currentAyah,
+      text:  cached || '',
+      auto_detected: false
     },
-    reciter_comparison:scores.map((s,i)=>({
-      reciter:s.n,rank:i+1,weighted_score:s.s,
-      phoneme_avg:Math.round(s.s*0.9),
-      pace_score:Math.round(58+Math.random()*38),
-      tajweed_score:Math.round(50+Math.random()*45),
-      style:RECITERS[s.n].style,
-      description:RECITERS[s.n].desc
+    ayah_summary: {
+      average_correct_pct:  avg,
+      average_error_pct:    100 - avg,
+      total_words:          words.length,
+      correct_words:        wrs.filter(w => w.status === 'correct').length,
+      slight_error_words:   wrs.filter(w => w.status === 'slight').length,
+      wrong_words_count:    wrs.filter(w => w.status === 'wrong').length,
+      words_needing_work:   wrs.filter(w => w.status !== 'correct').map(w => w.word),
+      overall_confidence:   avg >= 80 ? 'High' : avg >= 55 ? 'Medium' : 'Low'
+    },
+    reciter_comparison: scores.map((s, i) => ({
+      reciter:        s.n, rank: i + 1,
+      weighted_score: s.s,
+      phoneme_avg:    Math.round(s.s * 0.9),
+      pace_score:     Math.round(58 + Math.random() * 38),
+      tajweed_score:  Math.round(50 + Math.random() * 45),
+      style:          RECITERS[s.n].style,
+      description:    RECITERS[s.n].desc
     }))
   };
 }
 
 // ══════════════════════════════════════════════════════
-// SHOW RESULTS — REDESIGNED
+// SHOW RESULTS
 // ══════════════════════════════════════════════════════
 function showResults(data){
-  const da   = data.detected_ayah || {};
-  const sm   = data.ayah_summary  || {};
-  const best = data.best_reciter  || '–';
-  const bestInfo = RECITERS[best] || {};
-  const surahName = SURAH_NAMES[(da.surah||currentSurah)-1]||'';
+  const da  = data.detected_ayah || {};
+  const sm  = data.ayah_summary  || {};
+  const best = data.best_reciter || '–';
+  const bestInfo  = RECITERS[best] || {};
+  const surahName = SURAH_NAMES[(da.surah || currentSurah) - 1] || '';
 
-  /* ── 1. Summary Banner ── */
   document.getElementById('rsb-reciter').textContent = best;
   document.getElementById('rsb-style').textContent   = bestInfo.style ? `${bestInfo.style} · ${bestInfo.pace}` : '–';
-  document.getElementById('rsb-score').innerHTML     = `${data.best_reciter_score||0}<span>%</span>`;
+  document.getElementById('rsb-score').innerHTML     = `${data.best_reciter_score || 0}<span>%</span>`;
 
   document.getElementById('rsb-surah-name').textContent = surahName;
-  document.getElementById('rsb-surah-num').textContent  = `Surah ${da.surah||currentSurah}`;
+  document.getElementById('rsb-surah-num').textContent  = `Surah ${da.surah || currentSurah}`;
+  document.getElementById('rsb-ayah-num').textContent   = `Ayah ${da.ayah  || currentAyah}`;
 
-  document.getElementById('rsb-ayah-num').textContent = `Ayah ${da.ayah||'–'}`;
-  document.getElementById('rsb-auto-wrap').innerHTML  = da.auto_detected
-    ? '<div class="rsb-auto-chip">✦ Auto-detected</div>' : '';
+  const hadSelection = da.selected_surah != null && da.selected_ayah != null;
+  document.getElementById('rsb-auto-wrap').innerHTML = da.recitation_mismatch
+    ? `<div class="rsb-auto-chip">✦ Scored what you recited (picker had S${da.selected_surah} A${da.selected_ayah})</div>`
+    : da.auto_detected
+      ? '<div class="rsb-auto-chip">✦ Matched from your recitation</div>'
+      : hadSelection
+        ? '<div class="rsb-path-chip">✦ Matched your selection</div>'
+        : '<div class="rsb-path-chip">✦ Scored from your recitation</div>';
 
-  document.getElementById('rsb-range').textContent   = `${rangeFrom} – ${rangeTo}`;
-  document.getElementById('rsb-range-sub').textContent = `${rangeTo-rangeFrom+1} ayahs selected`;
+  document.getElementById('rsb-range').textContent    = `${rangeFrom} – ${rangeTo}`;
+  document.getElementById('rsb-range-sub').textContent = `${rangeTo - rangeFrom + 1} ayahs in range`;
+  document.getElementById('rsb-avg').textContent      = `${sm.average_correct_pct || 0}%`;
+  document.getElementById('rsb-conf').textContent     = sm.overall_confidence ? `Confidence: ${sm.overall_confidence}` : '–';
 
-  document.getElementById('rsb-avg').textContent     = `${sm.average_correct_pct||0}%`;
-  document.getElementById('rsb-conf').textContent    = sm.overall_confidence ? `Confidence: ${sm.overall_confidence}` : '–';
-
-  // Arabic text
   const arabicEl = document.getElementById('rsb-arabic');
-  arabicEl.textContent = da.text || '';
+  arabicEl.textContent  = da.text || '';
   arabicEl.style.display = da.text ? 'block' : 'none';
 
-  /* ── 2. Score Chips ── */
+  // Update the word section subtitle to confirm which ayah was scored
+  const wscSub = document.getElementById('wsc-ayah-sub');
+  if(wscSub) wscSub.textContent = `Word analysis for Surah ${da.surah || currentSurah} · Ayah ${da.ayah || currentAyah}`;
+
+  // Score chips
   const chips = [
-    {v:`${sm.average_correct_pct||0}%`, l:'Avg accuracy'},
-    {v:sm.total_words||0,               l:'Total words'},
-    {v:sm.correct_words||0,             l:'Correct'},
-    {v:sm.slight_error_words||0,        l:'Slight errors'},
-    {v:sm.wrong_words_count||0,         l:'Needs work'},
-    {v:sm.overall_confidence||'–',      l:'Confidence'},
+    {v: `${sm.average_correct_pct || 0}%`, l:'Avg accuracy'},
+    {v: sm.total_words || 0,               l:'Total words'},
+    {v: sm.correct_words || 0,             l:'Correct'},
+    {v: sm.slight_error_words || 0,        l:'Slight errors'},
+    {v: sm.wrong_words_count || 0,         l:'Needs work'},
+    {v: sm.overall_confidence || '–',      l:'Confidence'},
   ];
-  document.getElementById('scores-strip').innerHTML = chips.map(c=>
+  document.getElementById('scores-strip').innerHTML = chips.map(c =>
     `<div class="score-chip"><div class="score-chip-val">${c.v}</div><div class="score-chip-lbl">${c.l}</div></div>`
   ).join('');
 
-  /* ── 3. Word-by-word table ── */
+  // Word table
   const tbody = document.getElementById('words-table-body');
   tbody.innerHTML = '';
-  (data.word_results||[]).forEach((w,i)=>{
+  (data.word_results || []).forEach((w, i) => {
     const roman = w.romanised || ROMAN_HINTS[w.word] || '';
-    const row = document.createElement('div');
+    const row   = document.createElement('div');
     row.className = `word-row-new ${w.status}`;
     row.innerHTML = `
       <div class="word-num-badge">${i+1}</div>
@@ -1370,125 +1613,169 @@ function showResults(data){
     `;
     tbody.appendChild(row);
   });
-  // Animate bars after paint
-  setTimeout(()=>{
-    document.querySelectorAll('.word-bar-fill[data-t]').forEach(b=>{
-      b.style.width = b.dataset.t + '%';
-    });
+  setTimeout(() => {
+    document.querySelectorAll('.word-bar-fill[data-t]').forEach(b => { b.style.width = b.dataset.t + '%'; });
   }, 120);
 
-  /* ── 4. Reciter comparison ── */
+  // Reciter comparison
   const compBody = document.getElementById('reciter-comp-body');
   compBody.innerHTML = '';
-  (data.reciter_comparison||[]).forEach(r=>{
-    const isBest = r.reciter === best;
-    const info   = RECITERS[r.reciter]||{};
+  (data.reciter_comparison || []).forEach(r => {
+    const isBest = (r.reciter === best);
+    const info   = RECITERS[r.reciter] || {};
     const row    = document.createElement('div');
-    row.className = `rec-comp-row${isBest?' best':''}`;
+    row.className = `rec-comp-row${isBest ? ' best' : ''}`;
     row.innerHTML = `
       <div class="rec-comp-rank">${r.rank}</div>
       <div class="rec-comp-info">
-        <div class="rec-comp-name">
-          ${info.emoji||''} ${r.reciter}
-          ${isBest?'<span class="best-pill">Best match</span>':''}
-        </div>
+        <div class="rec-comp-name">${info.emoji||''} ${r.reciter}${isBest?'<span class="best-pill">Best match</span>':''}</div>
         <div class="rec-comp-style">${r.style||''} · Pace ${info.pace||'–'} · Tajweed ${info.tajweed||'–'}</div>
       </div>
       <div class="rec-comp-bars">
-        <div class="rec-bar-group">
-          <div class="rec-bar-lbl">Overall</div>
-          <div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%" data-t="${r.weighted_score}"></div></div>
-        </div>
-        <div class="rec-bar-group">
-          <div class="rec-bar-lbl">Phoneme</div>
-          <div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%;opacity:0.65" data-t="${r.phoneme_avg||0}"></div></div>
-        </div>
-        <div class="rec-bar-group">
-          <div class="rec-bar-lbl">Tajweed</div>
-          <div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%;opacity:0.45" data-t="${r.tajweed_score||0}"></div></div>
-        </div>
+        <div class="rec-bar-group"><div class="rec-bar-lbl">Overall</div><div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%" data-t="${r.weighted_score}"></div></div></div>
+        <div class="rec-bar-group"><div class="rec-bar-lbl">Phoneme</div><div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%;opacity:0.65" data-t="${r.phoneme_avg||0}"></div></div></div>
+        <div class="rec-bar-group"><div class="rec-bar-lbl">Tajweed</div><div class="rec-bar-track"><div class="rec-bar-fill" style="width:0%;opacity:0.45" data-t="${r.tajweed_score||0}"></div></div></div>
       </div>
       <div class="rec-comp-score">${r.weighted_score}%</div>
     `;
     compBody.appendChild(row);
   });
-  setTimeout(()=>{
-    document.querySelectorAll('.rec-bar-fill[data-t]').forEach(b=>{
-      b.style.width = b.dataset.t + '%';
-    });
+  setTimeout(() => {
+    document.querySelectorAll('.rec-bar-fill[data-t]').forEach(b => { b.style.width = b.dataset.t + '%'; });
   }, 200);
 
-  /* ── Show + scroll ── */
   document.getElementById('results').classList.add('show');
-  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
 
-  const dl = da.ayah ? ` · Ayah ${da.ayah} auto-detected` : '';
-  showToast(`Best match: ${best} (${data.best_reciter_score}%)${dl}`,'success');
+  // Sync picker to the ayah that was actually scored
+  if(da.surah && da.ayah){
+    const surahChanged = da.surah !== currentSurah;
+    currentSurah = da.surah;
+    currentAyah  = da.ayah;
+    const surahSel = document.getElementById('surah-select');
+    const ayahSel  = document.getElementById('ayah-select');
+    if(surahSel) surahSel.value = String(currentSurah);
+    if(surahChanged){
+      buildRangeUI(currentSurah);
+      loadSurahAyahs(currentSurah);
+    }
+    buildAyahPicker();
+    if(ayahSel) ayahSel.value = String(currentAyah);
+    updateSurahUI();
+    updateAyahPickerInfo();
+    updateButtonLabel();
+  }
+
+  const scoredRef = `Surah ${da.surah} · Ayah ${da.ayah}`;
+  if(da.recitation_mismatch){
+    showToast(
+      `Scored ${scoredRef} from your recording (picker had Ayah ${da.selected_ayah}). Best reciter: ${best} (${data.best_reciter_score}%)`,
+      'success'
+    );
+  } else {
+    showToast(`Best match: ${best} (${data.best_reciter_score}%) · ${scoredRef}`, 'success');
+  }
 }
 
 // ══════════════════════════════════════════════════════
 // PLAYER
 // ══════════════════════════════════════════════════════
 function buildPlayerReciterBtns(){
-  const row=document.getElementById('pl-rec-row');if(!row)return;
-  row.innerHTML='';
-  Object.entries(RECITERS).forEach(([n,info])=>{
-    const btn=document.createElement('button');btn.className='player-rec-btn'+(n===plReciter?' active':'');
-    btn.textContent=`${info.emoji} ${n}`;
-    btn.onclick=e=>selPlReciter(e,n);row.appendChild(btn);
+  const row = document.getElementById('pl-rec-row'); if(!row) return;
+  row.innerHTML = '';
+  Object.entries(RECITERS).forEach(([n, info]) => {
+    const btn = document.createElement('button');
+    btn.className = 'player-rec-btn' + (n === plReciter ? ' active' : '');
+    btn.textContent = `${info.emoji} ${n}`;
+    btn.onclick = e => selPlReciter(e, n);
+    row.appendChild(btn);
   });
-  const cards=document.getElementById('pl-cards');if(!cards)return;
-  cards.innerHTML='';
-  Object.entries(RECITERS).forEach(([n,info])=>{
-    const c=document.createElement('div');c.className='rcrd-card';
-    c.innerHTML=`<div class="rcrd-avatar">${info.emoji}</div><div class="rcrd-name">${n}</div><div class="rcrd-style">${info.style} · ${info.pace}</div><button class="play-btn-sm" id="pb-${info.key}" onclick="playReciter('${n}',event)">▶ Play</button>`;
+  const cards = document.getElementById('pl-cards'); if(!cards) return;
+  cards.innerHTML = '';
+  Object.entries(RECITERS).forEach(([n, info]) => {
+    const c = document.createElement('div');
+    c.className = 'rcrd-card';
+    c.innerHTML = `<div class="rcrd-avatar">${info.emoji}</div><div class="rcrd-name">${n}</div><div class="rcrd-style">${info.style} · ${info.pace}</div><button class="play-btn-sm" id="pb-${info.key}" onclick="playReciter('${n}',event)">▶ Play</button>`;
     cards.appendChild(c);
   });
 }
 
-function selPlReciter(e,name){
-  plReciter=name;
-  document.querySelectorAll('.player-rec-btn').forEach(b=>b.classList.remove('active'));
+function selPlReciter(e, name){
+  plReciter = name;
+  document.querySelectorAll('.player-rec-btn').forEach(b => b.classList.remove('active'));
   e.target.classList.add('active');
   updatePlAudio();
 }
 
 function updatePlAudio(){
-  const info=RECITERS[plReciter],s=document.getElementById('pl-surah').value,a=document.getElementById('pl-ayah').value;
-  const src=`${BACKEND}/audio/${info.key}/${String(s).padStart(3,'0')}${String(a).padStart(3,'0')}.mp3`;
-  const au=document.getElementById('pl-audio');au.src=src;
-  document.getElementById('pp-title').textContent=`${plReciter} — Surah ${SURAH_NAMES[s-1]}, Ayah ${a}`;
-  document.getElementById('pp-sub').textContent=`${info.style} · ${info.pace}`;
+  const info = RECITERS[plReciter];
+  const s = document.getElementById('pl-surah').value;
+  const a = document.getElementById('pl-ayah').value;
+  const src = `${BACKEND}/audio/${info.key}/${String(s).padStart(3,'0')}${String(a).padStart(3,'0')}.mp3`;
+  const au = document.getElementById('pl-audio');
+  au.src = src;
+  document.getElementById('pp-title').textContent = `${plReciter} — Surah ${SURAH_NAMES[s-1]}, Ayah ${a}`;
+  document.getElementById('pp-sub').textContent   = `${info.style} · ${info.pace}`;
 }
 
-function playReciter(name,e){
+function playReciter(name, e){
   e.stopPropagation();
-  const s=document.getElementById('pl-surah')?.value||1,a=document.getElementById('pl-ayah')?.value||1;
-  const info=RECITERS[name],src=`${BACKEND}/audio/${info.key}/${String(s).padStart(3,'0')}${String(a).padStart(3,'0')}.mp3`;
-  document.querySelectorAll('.play-btn-sm').forEach(b=>{b.classList.remove('playing');b.textContent='▶ Play';});
-  const au=document.getElementById('pl-audio');
-  if(au.src!==src||au.paused){au.src=src;au.play().then(()=>{const b=document.getElementById(`pb-${info.key}`);if(b){b.classList.add('playing');b.textContent='⏹ Stop';}}).catch(()=>showToast('Audio not available — connect backend','error'));}
-  else{au.pause();au.currentTime=0;}
+  const s    = document.getElementById('pl-surah')?.value || 1;
+  const a    = document.getElementById('pl-ayah')?.value  || 1;
+  const info = RECITERS[name];
+  const src  = `${BACKEND}/audio/${info.key}/${String(s).padStart(3,'0')}${String(a).padStart(3,'0')}.mp3`;
+  document.querySelectorAll('.play-btn-sm').forEach(b => { b.classList.remove('playing'); b.textContent = '▶ Play'; });
+  const au = document.getElementById('pl-audio');
+  if(au.src !== src || au.paused){
+    au.src = src;
+    au.play().then(() => {
+      const b = document.getElementById(`pb-${info.key}`);
+      if(b){ b.classList.add('playing'); b.textContent = '⏹ Stop'; }
+    }).catch(() => showToast('Audio not available — connect backend', 'error'));
+  } else {
+    au.pause(); au.currentTime = 0;
+  }
 }
 
 function togglePlay(){
-  const au=document.getElementById('pl-audio');updatePlAudio();
-  if(au.paused){au.play().catch(()=>showToast('Audio not available','error'));document.getElementById('pp-btn').textContent='⏸';}
-  else{au.pause();document.getElementById('pp-btn').textContent='▶';}
+  const au = document.getElementById('pl-audio');
+  updatePlAudio();
+  if(au.paused){
+    au.play().catch(() => showToast('Audio not available', 'error'));
+    document.getElementById('pp-btn').textContent = '⏸';
+  } else {
+    au.pause();
+    document.getElementById('pp-btn').textContent = '▶';
+  }
 }
-function updateProg(){const au=document.getElementById('pl-audio');if(!au.duration)return;document.getElementById('prog-fill').style.width=(au.currentTime/au.duration*100)+'%';document.getElementById('pp-time').textContent=`${fmt(au.currentTime)} / ${fmt(au.duration)}`;}
-function seekAudio(e){const t=document.getElementById('prog-track'),au=document.getElementById('pl-audio'),r=t.getBoundingClientRect();au.currentTime=(e.clientX-r.left)/r.width*au.duration;}
-function onAudioEnd(){document.getElementById('pp-btn').textContent='▶';document.getElementById('prog-fill').style.width='0%';document.querySelectorAll('.play-btn-sm').forEach(b=>{b.classList.remove('playing');b.textContent='▶ Play';});}
-function fmt(s){const m=Math.floor(s/60);return `${m}:${Math.floor(s%60).toString().padStart(2,'0')}`;}
+function updateProg(){
+  const au = document.getElementById('pl-audio'); if(!au.duration) return;
+  document.getElementById('prog-fill').style.width = (au.currentTime / au.duration * 100) + '%';
+  document.getElementById('pp-time').textContent   = `${fmt(au.currentTime)} / ${fmt(au.duration)}`;
+}
+function seekAudio(e){
+  const t  = document.getElementById('prog-track');
+  const au = document.getElementById('pl-audio');
+  const r  = t.getBoundingClientRect();
+  au.currentTime = (e.clientX - r.left) / r.width * au.duration;
+}
+function onAudioEnd(){
+  document.getElementById('pp-btn').textContent = '▶';
+  document.getElementById('prog-fill').style.width = '0%';
+  document.querySelectorAll('.play-btn-sm').forEach(b => { b.classList.remove('playing'); b.textContent = '▶ Play'; });
+}
+function fmt(s){ const m = Math.floor(s/60); return `${m}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
 
 // ══════════════════════════════════════════════════════
 // PROFILE CARDS
 // ══════════════════════════════════════════════════════
 function buildProfileCards(){
-  const g=document.getElementById('profiles-grid');if(!g)return;g.innerHTML='';
-  Object.entries(RECITERS).forEach(([n,info])=>{
-    const c=document.createElement('div');c.className='rcrd-card';
-    c.innerHTML=`<div class="rcrd-avatar">${info.emoji}</div><div class="rcrd-name">${n}</div><div class="rcrd-style">${info.style}</div><div class="rcrd-desc">${info.desc}</div><div class="rcrd-tags">${info.tags.map(t=>`<span class="rcrd-tag">${t}</span>`).join('')}</div><div class="rcrd-meta">Pace: <b>${info.pace}</b> · Tajweed: <b>${info.tajweed}</b></div>`;
+  const g = document.getElementById('profiles-grid'); if(!g) return;
+  g.innerHTML = '';
+  Object.entries(RECITERS).forEach(([n, info]) => {
+    const c = document.createElement('div');
+    c.className = 'rcrd-card';
+    c.innerHTML = `<div class="rcrd-avatar">${info.emoji}</div><div class="rcrd-name">${n}</div><div class="rcrd-style">${info.style}</div><div class="rcrd-desc">${info.desc}</div><div class="rcrd-tags">${info.tags.map(t => `<span class="rcrd-tag">${t}</span>`).join('')}</div><div class="rcrd-meta">Pace: <b>${info.pace}</b> · Tajweed: <b>${info.tajweed}</b></div>`;
     g.appendChild(c);
   });
 }
@@ -1496,9 +1783,11 @@ function buildProfileCards(){
 // ══════════════════════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════════════════════
-function showToast(msg,type=''){
-  const t=document.getElementById('toast');t.textContent=msg;t.className=`toast show ${type}`;
-  setTimeout(()=>t.classList.remove('show'),3500);
+function showToast(msg, type=''){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast show ${type}`;
+  setTimeout(() => t.classList.remove('show'), 3500);
 }
 </script>
 </body>

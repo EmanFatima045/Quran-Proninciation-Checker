@@ -1,70 +1,10 @@
 """
 =====================================================================
-  Quran Pronunciation Checker — v4  (WINDOWS FIX + BISMILLAH FIX + SPEED)
-
-  FIXES vs v3:
-  ────────────────────────────────────────────────────────────────
-  FIX 1 — torch.compile CRASH ON WINDOWS (InductorError: cl not found)
-    Root cause: torch.compile tries to JIT-compile C++ code using
-    MSVC (cl.exe). Most Windows installs don't have Visual Studio
-    build tools, causing a crash on first GPU call.
-
-    Solution: Completely remove torch.compile. On CPU (which is what
-    you're running), torch.compile with reduce-overhead actually ADDS
-    overhead during warmup (compiling graph) and doesn't help until
-    the 50th+ call. Plain eager mode is faster for small batches.
-
-  FIX 2 — BISMILLAH FALSE POSITIVE  (SURAH AL-FATIHA)
-    Root cause: When user selects Surah 1 (Al-Fatiha) and recites
-    any ayah, the detector kept picking ayah 1 (Bismillah) because:
-      a) All Bismillah words are stopwords → weight=1.0 each
-      b) The penalty in v3 only fires in detect_ayah_in_surah()
-         but PATH A (user-selected ayah) completely BYPASSES detection
-         and directly uses ayah 1 if that's what's stored.
-      c) Frontend wasn't sending ayah= field → always PATH B
-         → detection always returns Bismillah
-
-    REAL FIX — THREE LAYERS:
-      1) Surah-1 special rule: ayah 1 of Surah 1 IS genuinely
-         Bismillah AND Al-Fatiha starts with it. But if user is
-         reciting Surah 1 and selects ayah 2-7, we trust that.
-         If no ayah selected (PATH B), we use minimum-score=0.15
-         for ayah 1 and require at least 2 non-stopword matches.
-      2) Boost score for NON-bismillah ayahs: add +0.20 base bonus
-         to any ayah > 1 so Bismillah has to genuinely dominate.
-      3) Hard clamp: ayah 1 score is capped at 0.45 unless the
-         transcript contains ≥ 2 unique rare words from it.
-
-  FIX 3 — FASTER TRANSCRIPTION
-    Whisper tiny is slow on CPU (~3s). Optimisations:
-      a) Trim silence from audio before passing to Whisper
-         (saves ~0.5-1s on short clips with leading silence)
-      b) Whisper temperature=0.0, beam_size=1, best_of=1 already set
-      c) Added: initial_prompt with Arabic context helps tiny model
-         avoid hallucinating non-Arabic text (the ghost loop you saw:
-         "لأحظة من المقابل لأحظة" — that's a hallucination from silence)
-      d) no_speech_threshold raised to 0.6: reject silent/noise audio
-         fast instead of hallucinating
-
-  FIX 4 — SILENCE/NOISE GUARD
-    If Whisper returns < 5 Arabic chars OR detects repeated phrases
-    (hallucination loop), we short-circuit and return a clear error
-    rather than attempting detection on garbage transcription.
-
-  FIX 5 — AUDIO TRIM BEFORE WHISPER
-    Strip leading/trailing silence using ffmpeg silenceremove filter.
-    This alone reduces Whisper time by 0.5-1.5s on typical recordings.
-
-  RESPONSE TIME (CPU laptop, no GPU):
-    User selects ayah from list (ayah= sent):
-      → 2-4s  (no Whisper, cached refs)
-    Free recitation (no ayah= sent):
-      → 4-7s  (Whisper + detection + embedding)
-
-  FRONTEND LOADING UX:
-    Use the bundled loading_popup.html snippet for an engaging
-    loading screen. It shows rotating Quranic tips and a waveform
-    animation so users stay engaged during the 3-7s wait.
+  Quran Pronunciation Checker — v6 (TRUE DETECTION-FIRST)
+=====================================================================
+  FIX: Detection ALWAYS wins when confident.
+       UI selection is a last-resort fallback only.
+       selected_score no longer influences routing.
 =====================================================================
 """
 
@@ -96,18 +36,27 @@ QURAN_TEXT_FILE    = "quran_tanzil.txt"
 MAX_AYAHS          = 6236
 SCORE_CORRECT      = 0.82
 SCORE_SLIGHT       = 0.55
+MIN_DETECT_MATCH   = 0.34
+GLOBAL_MIN_MATCH   = 0.44
+GLOBAL_SCORE_MARGIN= 0.08
 DEVICE             = "cuda" if torch.cuda.is_available() else "cpu"
 DB_PATH            = "quran_users.db"
 WAV2VEC_CACHE      = "./model_cache/wav2vec2"
 MAX_UPLOAD_MB      = 50
 
+# ── Detection tuning ──────────────────────────────────────────────────
+# DETECTION_CONFIDENCE: minimum score for detection to be trusted
+# If detected score >= this → ALWAYS use detected ayah, ignore UI
+DETECTION_CONFIDENCE = 0.30   # lowered so detection wins more easily
+OVERRIDE_MARGIN      = 0.0    # NO margin needed — detection is always primary
+
 # ── Speed constants ───────────────────────────────────────────────────
-MAX_EMBED_BATCH     = 12
-MAX_WORDS_TO_SCORE  = 15
-WHISPER_WORKERS     = 2
-MAX_CONCURRENT_EMBED= 3
-REF_CACHE_MAX_ITEMS = 8000
-PREWARM_SURAHS      = [1, 2, 36, 55, 67, 112, 113, 114]
+MAX_EMBED_BATCH      = 12
+MAX_WORDS_TO_SCORE   = 15
+WHISPER_WORKERS      = 2
+MAX_CONCURRENT_EMBED = 3
+REF_CACHE_MAX_ITEMS  = 8000
+PREWARM_SURAHS       = [1, 2, 36, 55, 67, 112, 113, 114]
 
 os.makedirs(WAV2VEC_CACHE, exist_ok=True)
 os.makedirs("static", exist_ok=True)
@@ -161,11 +110,8 @@ ARABIC_STOPWORDS = {
     "اللّه", "اللَّه", "اللَّهِ",
 }
 
-# The 4 words that make up Bismillah — all stopwords, useless for detection
-BISMILLAH_WORDS = {"بسم", "الله", "الرحمن", "الرحيم"}
-
-# Whisper hallucination patterns (repeated phrases = garbage output)
-HALLUCINATION_RE = re.compile(r"(.{6,}?)\1{2,}")  # same chunk repeated 2+ times
+BISMILLAH_WORDS  = {"بسم", "الله", "الرحمن", "الرحيم"}
+HALLUCINATION_RE = re.compile(r"(.{6,}?)\1{2,}")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -270,13 +216,14 @@ def get_user_history(user_id, limit=20):
 def get_user_reciter_stats(user_id):
     with _db() as conn:
         rows = conn.execute(
-            "SELECT best_reciter,COUNT(*) FROM analysis_history WHERE user_id=? GROUP BY best_reciter ORDER BY 2 DESC",
+            "SELECT best_reciter,COUNT(*) FROM analysis_history WHERE user_id=? "
+            "GROUP BY best_reciter ORDER BY 2 DESC",
             (user_id,)).fetchall()
     return {r[0]: r[1] for r in rows}
 
 
 # ══════════════════════════════════════════════════════════════════
-#  MODEL LOADING  — FIX 1: NO torch.compile ON WINDOWS/CPU
+#  MODEL LOADING
 # ══════════════════════════════════════════════════════════════════
 def load_wav2vec2():
     proc_path  = os.path.join(WAV2VEC_CACHE, "processor")
@@ -293,9 +240,6 @@ def load_wav2vec2():
         model.save_pretrained(model_path)
     model.eval()
 
-    # ── FIX 1: Only torch.compile on CUDA; skip entirely on CPU/Windows ──
-    # torch.compile on CPU requires cl.exe (MSVC) which crashes on most
-    # Windows machines. On CPU it also adds overhead, not savings.
     if DEVICE == "cuda":
         try:
             model = torch.compile(model, mode="reduce-overhead")
@@ -349,11 +293,6 @@ def load_audio(path: str) -> np.ndarray:
 
 
 def trim_silence(path: str) -> str:
-    """
-    FIX 3 / FIX 5: Strip leading & trailing silence with ffmpeg.
-    Returns path to trimmed file (caller must delete it).
-    Falls back to original path if ffmpeg trim fails.
-    """
     trimmed = path + "_trimmed.wav"
     try:
         r = subprocess.run(
@@ -368,7 +307,6 @@ def trim_silence(path: str) -> str:
             return trimmed
     except Exception:
         pass
-    # fallback: return original
     if os.path.exists(trimmed):
         try: os.remove(trimmed)
         except: pass
@@ -412,11 +350,10 @@ def embed_user(wav: np.ndarray, scored_bounds: list) -> list:
     return _run_embeddings(segs)
 
 
-def embed_all_reciters_batched(
-        surah: int, ayah: int, scored_idx: list, n_words: int) -> dict:
-    idx_hash  = hashlib.md5(str(scored_idx).encode()).hexdigest()[:8]
-    result    = {}
-    to_embed  = {}
+def embed_all_reciters_batched(surah: int, ayah: int, scored_idx: list, n_words: int) -> dict:
+    idx_hash = hashlib.md5(str(scored_idx).encode()).hexdigest()[:8]
+    result   = {}
+    to_embed = {}
 
     for name, info in RECITERS.items():
         cache_key = f"{surah}:{ayah}:{info['key']}:{idx_hash}"
@@ -446,8 +383,8 @@ def embed_all_reciters_batched(
     flat_embs = _run_embeddings(flat_segs)
 
     for name, (segs, cache_key) in to_embed.items():
-        s, e   = reciter_spans[name]
-        embs   = flat_embs[s:e]
+        s, e = reciter_spans[name]
+        embs = flat_embs[s:e]
         REF_EMB_CACHE.set(cache_key, embs)
         result[name] = embs
 
@@ -479,21 +416,14 @@ def get_ref_wav_cached(surah: int, ayah: int, key: str):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  TRANSCRIPTION  — FIX 3 + FIX 4: FASTER + HALLUCINATION GUARD
+#  TRANSCRIPTION
 # ══════════════════════════════════════════════════════════════════
 def is_hallucination(text: str) -> bool:
-    """
-    FIX 4: Detect Whisper hallucination loops.
-    Pattern: same phrase repeated 2+ times back-to-back.
-    Also catches the non-Arabic output case.
-    """
     if not text or len(text.strip()) < 4:
         return True
-    # Check for repeated pattern (looping hallucination)
     if HALLUCINATION_RE.search(text):
         print(f"[TRANSCRIBE] Hallucination detected: '{text[:60]}'")
         return True
-    # Check if output has almost no Arabic characters
     arabic_chars = sum(1 for c in text if "\u0600" <= c <= "\u06FF")
     if arabic_chars < 4:
         print(f"[TRANSCRIBE] No Arabic detected: '{text[:60]}'")
@@ -501,12 +431,26 @@ def is_hallucination(text: str) -> bool:
     return False
 
 
+def _transcribe_wav2vec2(path: str) -> str:
+    try:
+        wav = load_audio(path)
+        with EMBED_SEMAPHORE:
+            inp = ar_processor(wav, sampling_rate=SAMPLE_RATE,
+                               return_tensors="pt", padding=True)
+            inp = {k: v.to(DEVICE) for k, v in inp.items()}
+            with torch.inference_mode():
+                logits = ar_model(**inp).logits
+            ids  = torch.argmax(logits, dim=-1)
+            text = ar_processor.batch_decode(ids)[0].strip()
+        if is_hallucination(text):
+            return ""
+        return text
+    except Exception as e2:
+        print(f"[TRANSCRIBE] Wav2Vec2 fallback failed: {e2}")
+        return ""
+
+
 def transcribe_audio(path: str) -> str:
-    """
-    FIX 3: Trim silence first, then transcribe.
-    FIX 4: Detect and reject hallucinations.
-    """
-    # Step 1: trim silence (saves 0.5-1.5s on Whisper)
     trimmed_path = trim_silence(path)
     try:
         with WHISPER_SEMAPHORE:
@@ -520,30 +464,18 @@ def transcribe_audio(path: str) -> str:
                 beam_size=1,
                 best_of=1,
                 temperature=0.0,
-                no_speech_threshold=0.6,     # FIX 4: raised from 0.4 → reject noise faster
-                compression_ratio_threshold=2.4,  # tighter: catch repetition loops early
-                # FIX 3: initial_prompt helps tiny model stay in Arabic
+                no_speech_threshold=0.6,
+                compression_ratio_threshold=2.4,
                 initial_prompt="بسم الله الرحمن الرحيم",
             )
         text = result["text"].strip()
         if is_hallucination(text):
-            return ""   # caller handles empty string
+            print("[TRANSCRIBE] Whisper hallucination — trying wav2vec2 fallback …")
+            return _transcribe_wav2vec2(trimmed_path)
         return text
     except Exception as e:
         print(f"[TRANSCRIBE] Whisper error ({e}), wav2vec2 fallback …")
-        try:
-            wav = load_audio(path)
-            with EMBED_SEMAPHORE:
-                inp = ar_processor(wav, sampling_rate=SAMPLE_RATE,
-                                   return_tensors="pt", padding=True)
-                inp = {k: v.to(DEVICE) for k, v in inp.items()}
-                with torch.inference_mode():
-                    logits = ar_model(**inp).logits
-                ids = torch.argmax(logits, dim=-1)
-                return ar_processor.batch_decode(ids)[0].strip()
-        except Exception as e2:
-            print(f"[TRANSCRIBE] Wav2Vec2 fallback also failed: {e2}")
-            return ""
+        return _transcribe_wav2vec2(path)
     finally:
         if trimmed_path != path and os.path.exists(trimmed_path):
             try: os.remove(trimmed_path)
@@ -556,6 +488,7 @@ def transcribe_audio(path: str) -> str:
 def strip_diacritics(text: str) -> str:
     return "".join(c for c in text if not unicodedata.category(c).startswith("M"))
 
+
 def normalise_arabic(text: str) -> str:
     text = strip_diacritics(text)
     for v in "أإآٱ":
@@ -564,25 +497,16 @@ def normalise_arabic(text: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════
-#  AYAH DETECTION  — FIX 2: HARD BISMILLAH SUPPRESSION
+#  AYAH SCORING HELPER
 # ══════════════════════════════════════════════════════════════════
 def _count_rare_matches(t_words: list, a_words_set: set) -> int:
-    """Count how many NON-stopword words from transcript match the ayah."""
     return sum(1 for w in t_words if w not in ARABIC_STOPWORDS and w in a_words_set)
 
 
-def compute_ayah_score(t_norm: str, a_norm: str, ayah_number: int = 0,
-                       surah_number: int = 0) -> float:
-    """
-    4-component score + Bismillah suppression.
-
-    FIX 2 logic:
-    - Ayah 1 of any surah = Bismillah. Its words are ALL stopwords.
-    - We hard-cap its score at 0.40 unless ≥2 rare word matches.
-    - All other ayahs get a small +0.12 bonus to beat Bismillah's
-      common-word advantage.
-    """
-    if not t_norm or not a_norm: return 0.0
+def compute_ayah_score(t_norm: str, a_norm: str,
+                       ayah_number: int = 0, surah_number: int = 0) -> float:
+    if not t_norm or not a_norm:
+        return 0.0
 
     seq  = SequenceMatcher(None, t_norm, a_norm, autojunk=False).ratio()
     t_w  = t_norm.split()
@@ -604,57 +528,160 @@ def compute_ayah_score(t_norm: str, a_norm: str, ayah_number: int = 0,
 
     base_score = min(1.0, (0.50 * seq + 0.50 * wj) * lp + anchor)
 
-    # ── FIX 2: BISMILLAH HARD SUPPRESSION ───────────────────────
     if ayah_number == 1:
         rare_matches = _count_rare_matches(t_w, a_s)
         if rare_matches < 1:
-            # Zero rare word matches → Bismillah wins only on stopwords → suppress hard
             base_score = min(base_score, 0.25)
         elif rare_matches < 2:
-            # Only 1 rare match → moderate cap
             base_score = min(base_score, 0.40)
-        # ≥2 rare matches → allow full score (user genuinely said Bismillah)
-    else:
-        # Non-Bismillah ayahs get a small boost to beat common-word matching
-        base_score = min(1.0, base_score + 0.12)
 
     return base_score
 
 
-def detect_ayah_in_surah(transcription: str, surah_rows: list) -> dict:
-    """
-    Detect which ayah was recited.
-    FIX 2: Bismillah is strongly suppressed unless transcription
-    genuinely contains rare Bismillah-specific content (which it won't
-    because all Bismillah words ARE stopwords → it can never win).
-    """
+# ══════════════════════════════════════════════════════════════════
+#  AYAH DETECTION (in-surah)
+# ══════════════════════════════════════════════════════════════════
+def detect_ayah_in_surah(transcription: str, surah_rows: list) -> tuple[dict | None, float]:
+    """Return (best_row, score) within the given surah rows."""
+    if not surah_rows:
+        return None, 0.0
     if len(surah_rows) == 1:
-        return surah_rows[0]
+        t_norm = normalise_arabic(transcription)
+        sc = compute_ayah_score(t_norm, normalise_arabic(surah_rows[0]["text"]),
+                                surah_rows[0]["ayah"], surah_rows[0]["surah"])
+        return surah_rows[0], sc
 
     t_norm = normalise_arabic(transcription)
-
-    # Too short or empty (hallucination guard already cleared this)
     if len(t_norm.strip()) < 3:
-        # Return ayah 2 if available (skip Bismillah as default)
-        for row in surah_rows:
-            if row["ayah"] > 1:
-                return row
-        return surah_rows[0]
+        return None, 0.0
 
-    best_row, best_score = surah_rows[0], -1.0
+    best_row, best_score = None, -1.0
     for row in surah_rows:
-        sc = compute_ayah_score(
-            t_norm,
-            normalise_arabic(row["text"]),
-            ayah_number=row["ayah"],
-            surah_number=row["surah"],
-        )
+        sc = compute_ayah_score(t_norm, normalise_arabic(row["text"]),
+                                row["ayah"], row["surah"])
         if sc > best_score:
             best_score, best_row = sc, row
 
-    print(f"[DETECT] best=Ayah {best_row['ayah']} (score={best_score:.3f}) "
-          f"surah={best_row['surah']} from '{t_norm[:40]}'")
-    return best_row
+    if best_score < MIN_DETECT_MATCH:
+        return None, 0.0
+
+    print(f"[DETECT_SURAH] Ayah {best_row['ayah']} score={best_score:.3f}")
+    return best_row, best_score
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AYAH DETECTION (global / cross-surah)
+# ══════════════════════════════════════════════════════════════════
+def detect_globally(transcription: str) -> tuple[dict | None, float]:
+    """Return (best_row, score) across the full Quran."""
+    t_norm = normalise_arabic(transcription)
+    if len(t_norm.strip()) < 4:
+        return None, 0.0
+
+    best_row, best_score, second_score = None, -1.0, -1.0
+    for row in QURAN_DATA:
+        sc = compute_ayah_score(t_norm, normalise_arabic(row["text"]),
+                                row["ayah"], row["surah"])
+        if sc > best_score:
+            second_score = best_score
+            best_score, best_row = sc, row
+        elif sc > second_score:
+            second_score = sc
+
+    if best_row is None or best_score < GLOBAL_MIN_MATCH:
+        return None, 0.0
+
+    if best_score - second_score < GLOBAL_SCORE_MARGIN:
+        print(f"[DETECT_GLOBAL] Ambiguous ({best_score:.3f} vs {second_score:.3f}) — skipping")
+        return None, 0.0
+
+    print(f"[DETECT_GLOBAL] S{best_row['surah']} A{best_row['ayah']} score={best_score:.3f}")
+    return best_row, best_score
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CORE ROUTING — TRUE DETECTION-FIRST (v6 FIX)
+#
+#  RULE: detection ALWAYS wins when score >= DETECTION_CONFIDENCE.
+#        UI selection (known_ayah) is ONLY used as last-resort
+#        fallback when BOTH in-surah and global detection fail.
+#        selected_score does NOT influence the decision AT ALL.
+# ══════════════════════════════════════════════════════════════════
+def resolve_target_ayah(
+        transcribed_text: str,
+        surah_rows: list,
+        known_ayah: int | None = None,
+        all_surah_rows: list | None = None,
+) -> tuple[dict, float, bool, dict | None, dict | None, bool]:
+
+    t_norm      = normalise_arabic(transcribed_text)
+    search_rows = all_surah_rows if all_surah_rows else surah_rows
+
+    # Resolve the UI-selected row — kept only for fallback & diff reporting
+    selected_row = None
+    if known_ayah is not None:
+        selected_row = next((r for r in surah_rows if r["ayah"] == known_ayah), None)
+
+    # ── Run both detectors ────────────────────────────────────────
+    in_surah_row,  in_surah_score  = detect_ayah_in_surah(transcribed_text, search_rows)
+    global_row,    global_score    = detect_globally(transcribed_text)
+
+    print(
+        f"[ROUTE] in_surah=A{in_surah_row['ayah'] if in_surah_row else 'None'}"
+        f"({in_surah_score:.3f})  "
+        f"global=S{global_row['surah'] if global_row else '-'}:"
+        f"A{global_row['ayah'] if global_row else 'None'}({global_score:.3f})  "
+        f"ui_selected=A{known_ayah}"
+    )
+
+    # ── Pick the stronger detected candidate ──────────────────────
+    if global_score >= in_surah_score:
+        detected_row, detected_score = global_row, global_score
+    else:
+        detected_row, detected_score = in_surah_row, in_surah_score
+
+    # ══════════════════════════════════════════════════════════════
+    #  DECISION — detection ALWAYS wins if confident enough
+    #  UI selection is NEVER compared against detected score.
+    # ══════════════════════════════════════════════════════════════
+    if detected_row is not None and detected_score >= DETECTION_CONFIDENCE:
+        # ✅ Detection is confident → use it, ignore UI completely
+        ayah_row      = detected_row
+        auto_detected = True
+        print(
+            f"[ROUTE] ✅ DETECTION WINS → "
+            f"S{ayah_row['surah']} A{ayah_row['ayah']} "
+            f"(score={detected_score:.3f})"
+        )
+    else:
+        # ⚠️ Detection failed or too weak → fall back to UI selection
+        ayah_row      = selected_row if selected_row else surah_rows[0]
+        auto_detected = selected_row is None
+        print(
+            f"[ROUTE] ⚠️ Detection too weak (score={detected_score:.3f}) → "
+            f"fallback to {'UI-selected' if selected_row else 'first'} "
+            f"A{ayah_row['ayah']}"
+        )
+
+    text_match_ratio = SequenceMatcher(
+        None, t_norm, normalise_arabic(ayah_row["text"]), autojunk=False
+    ).ratio()
+
+    corrected_from_selection = bool(
+        selected_row
+        and (
+            ayah_row["surah"] != selected_row["surah"]
+            or ayah_row["ayah"]  != selected_row["ayah"]
+        )
+    )
+
+    print(
+        f"[ROUTE] FINAL → S{ayah_row['surah']} A{ayah_row['ayah']} "
+        f"text_match={text_match_ratio:.2%} "
+        f"auto={auto_detected} corrected={corrected_from_selection}"
+    )
+
+    return ayah_row, text_match_ratio, auto_detected, selected_row, None, corrected_from_selection
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -666,22 +693,25 @@ MADD_CHARS     = ["ا", "و", "ي"]
 IDGHAM_LETTERS = "ينمو"
 IKHFA_LETTERS  = "تثجدذزسشصضطظفقك"
 
+
 def check_tajweed(word, next_word=""):
     rules = []
     if "نّ" in word or "مّ" in word:
         rules.append({"rule": "Ghunna", "detail": "Nasal emphasis on ن/م shadda", "severity": "required"})
     for ch in QALQALA_CHARS:
         if ch + "ْ" in word:
-            rules.append({"rule": "Qalqala", "detail": f"Echo/bounce on sukoon {ch}", "severity": "required"}); break
+            rules.append({"rule": "Qalqala", "detail": f"Echo/bounce on sukoon {ch}", "severity": "required"})
+            break
     for m in MADD_CHARS:
         if m in word:
-            rules.append({"rule": "Madd", "detail": f"Elongate {m}", "severity": "required"}); break
+            rules.append({"rule": "Madd", "detail": f"Elongate {m}", "severity": "required"})
+            break
     if word.endswith("نْ") or any(word.endswith(t) for t in TANWIN_CHARS):
         if next_word:
             f = next_word[0]
-            if   f in IDGHAM_LETTERS: rules.append({"rule": "Idgham", "detail": "Merge noon", "severity": "required"})
-            elif f in IKHFA_LETTERS:  rules.append({"rule": "Ikhfa", "detail": "Hide noon", "severity": "required"})
-            elif f == "ب":            rules.append({"rule": "Iqlab", "detail": "Noon to meem before ب", "severity": "required"})
+            if   f in IDGHAM_LETTERS: rules.append({"rule": "Idgham",  "detail": "Merge noon",             "severity": "required"})
+            elif f in IKHFA_LETTERS:  rules.append({"rule": "Ikhfa",   "detail": "Hide noon",              "severity": "required"})
+            elif f == "ب":            rules.append({"rule": "Iqlab",   "detail": "Noon to meem before ب",  "severity": "required"})
     if "اللَّه" in word or word in ["اللَّهِ", "اللَّهُ", "اللَّهَ"]:
         rules.append({"rule": "Lam Jalalah", "detail": "Heavy pronunciation of Allah", "severity": "required"})
     return rules
@@ -690,13 +720,15 @@ def check_tajweed(word, next_word=""):
 def score_to_status(s): return "correct" if s >= SCORE_CORRECT else "slight" if s >= SCORE_SLIGHT else "wrong"
 def score_to_conf(s):   return "High" if s >= 0.80 else "Medium" if s >= 0.55 else "Low"
 
+
 def estimate_pace(wav, n):
     wps = n / max(len(wav) / SAMPLE_RATE, 0.1)
-    if wps < 0.8: return "very_slow"
-    if wps < 1.2: return "slow"
-    if wps < 1.8: return "moderate"
-    if wps < 2.5: return "moderate_fast"
+    if wps < 0.8:  return "very_slow"
+    if wps < 1.2:  return "slow"
+    if wps < 1.8:  return "moderate"
+    if wps < 2.5:  return "moderate_fast"
     return "fast"
+
 
 def pace_compat(u, r):
     ui = PACE_ORDER.index(u) if u in PACE_ORDER else 2
@@ -709,6 +741,7 @@ def pace_compat(u, r):
 # ══════════════════════════════════════════════════════════════════
 COSINE_FLOOR, COSINE_GOOD, COSINE_GREAT = 0.05, 0.30, 0.55
 
+
 def rescale_cosine(raw):
     raw = max(COSINE_FLOOR, min(raw, 1.0))
     if raw <= COSINE_FLOOR: return 0.0
@@ -718,7 +751,7 @@ def rescale_cosine(raw):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  PREWARM — WAV ONLY, NO GPU
+#  PREWARM
 # ══════════════════════════════════════════════════════════════════
 def prewarm_wav_cache():
     time.sleep(8)
@@ -730,7 +763,7 @@ def prewarm_wav_cache():
                 if get_ref_wav_cached(surah, row["ayah"], info["key"]) is not None:
                     count += 1
             time.sleep(0.02)
-    print(f"[PREWARM] Done — {count} WAV files cached ✓ (GPU embeds lazy)")
+    print(f"[PREWARM] Done — {count} WAV files cached ✓")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -740,60 +773,52 @@ def analyse_multi_reciter(
         user_path: str,
         surah_rows: list,
         user_id: str,
-        known_ayah: int | None = None
+        known_ayah: int | None = None,
+        all_surah_rows: list | None = None,
 ) -> dict:
     t_start = time.time()
 
-    # ── STEP 1: Identify the ayah ─────────────────────────────────
-    if known_ayah is not None:
-        ayah_row = next((r for r in surah_rows if r["ayah"] == known_ayah),
-                        surah_rows[0])
-        transcribed_text = ayah_row["text"]
-        transcription_ms = 0
-        text_match_ratio = 1.0
-        print(f"[ANALYSE] PATH A — Ayah {ayah_row['surah']}:{ayah_row['ayah']} "
-              f"(user-selected, Whisper skipped)")
-    else:
-        t0               = time.time()
-        transcribed_text = transcribe_audio(user_path)
-        transcription_ms = int((time.time() - t0) * 1000)
-        print(f"[ANALYSE] PATH B — Transcription {transcription_ms}ms: '{transcribed_text}'")
+    # ── STEP 1: Transcription ──────────────────────────────────────
+    t0               = time.time()
+    transcribed_text = transcribe_audio(user_path)
+    transcription_ms = int((time.time() - t0) * 1000)
 
-        if not transcribed_text:
-            # Hallucination / silence — return descriptive error
-            return {
-                "error": "Could not detect Arabic speech. Please record clearly in a quiet environment.",
-                "transcribed_text": "",
-                "transcription_ms": transcription_ms,
-            }
+    if not transcribed_text:
+        return {
+            "error": "Could not detect Arabic speech. Please record clearly in a quiet environment.",
+            "transcribed_text": "",
+            "transcription_ms": transcription_ms,
+        }
 
-        ayah_row = detect_ayah_in_surah(transcribed_text, surah_rows)
-
-        text_match_ratio = SequenceMatcher(
-            None,
-            normalise_arabic(transcribed_text),
-            normalise_arabic(ayah_row["text"]),
-            autojunk=False
-        ).ratio()
+    # ── STEP 2: Resolve target ayah (detection-first) ──────────────
+    try:
+        (ayah_row, text_match_ratio, auto_detected,
+         selected_row, suggested_ayah, recitation_mismatch) = resolve_target_ayah(
+            transcribed_text, surah_rows, known_ayah, all_surah_rows
+        )
+    except ValueError as e:
+        return {
+            "error": str(e),
+            "transcribed_text": transcribed_text,
+            "transcription_ms": transcription_ms,
+        }
 
     all_words = ayah_row["text"].split()
 
-    # ── STEP 2: Load + split user audio ───────────────────────────
+    # ── STEP 3: Audio processing ───────────────────────────────────
     user_wav        = load_audio(user_path)
     user_pace       = estimate_pace(user_wav, len(all_words))
     all_user_bounds = equal_split(user_wav, len(all_words))
-
-    # ── STEP 3: Sample words ───────────────────────────────────────
-    scored_idx    = sample_word_indices(len(all_words))
-    scored_words  = [all_words[i]       for i in scored_idx]
-    scored_bounds = [all_user_bounds[i] for i in scored_idx]
+    scored_idx      = sample_word_indices(len(all_words))
+    scored_words    = [all_words[i]       for i in scored_idx]
+    scored_bounds   = [all_user_bounds[i] for i in scored_idx]
 
     # ── STEP 4: User embeddings ────────────────────────────────────
     t_emb     = time.time()
     user_embs = embed_user(user_wav, scored_bounds)
     print(f"[ANALYSE] User embeddings {int((time.time()-t_emb)*1000)}ms")
 
-    # ── STEP 5: Reference embeddings (batched) ─────────────────────
+    # ── STEP 5: Reference embeddings ──────────────────────────────
     t_ref    = time.time()
     ref_embs = embed_all_reciters_batched(
         ayah_row["surah"], ayah_row["ayah"], scored_idx, len(all_words))
@@ -803,18 +828,17 @@ def analyse_multi_reciter(
     t_score = time.time()
 
     def score_one(name, info):
-        embs    = ref_embs.get(name)
-        has_ref = embs is not None
+        embs         = ref_embs.get(name)
         word_results = []
 
         for wi, (word, (s, e)) in enumerate(zip(scored_words, scored_bounds)):
             u_emb = user_embs[wi].unsqueeze(0)
-            if has_ref:
+
+            if embs is not None and wi < len(embs):
                 raw      = float(F.cosine_similarity(u_emb, embs[wi].unsqueeze(0)).item())
                 ph_score = rescale_cosine(raw)
             else:
-                ph_score = min(1.0, max(0.0,
-                    text_match_ratio * 0.85 + float(np.random.uniform(-0.05, 0.05))))
+                ph_score = float(text_match_ratio * 0.85)
 
             ph_score = max(0.0, min(ph_score, 1.0))
             orig_i   = scored_idx[wi]
@@ -830,25 +854,30 @@ def analyse_multi_reciter(
 
             cp = round(ph_score * 100, 1)
             word_results.append({
-                "word": word, "correct_pct": cp, "error_pct": round(100.0 - cp, 1),
-                "status": score_to_status(ph_score), "confidence": score_to_conf(ph_score),
+                "word":        word,
+                "correct_pct": cp,
+                "error_pct":   round(100.0 - cp, 1),
+                "status":      score_to_status(ph_score),
+                "confidence":  score_to_conf(ph_score),
                 "error_types": errs,
-                "tajweed": check_tajweed(word, next_w),
-                "start_ms": int(s / SAMPLE_RATE * 1000),
-                "end_ms":   int(e / SAMPLE_RATE * 1000),
+                "tajweed":     check_tajweed(word, next_w),
+                "start_ms":    int(s / SAMPLE_RATE * 1000),
+                "end_ms":      int(e / SAMPLE_RATE * 1000),
             })
 
-        wt      = info["score_weights"]
-        ph_avg  = float(np.mean([r["correct_pct"] / 100 for r in word_results]))
-        taj_sc  = len([r for r in word_results if r["tajweed"]]) / max(len(word_results), 1)
-        pace_sc = pace_compat(user_pace, info["pace"])
+        wt       = info["score_weights"]
+        ph_avg   = float(np.mean([r["correct_pct"] / 100 for r in word_results]))
+        taj_sc   = sum(1 for r in word_results if r["tajweed"]) / max(len(word_results), 1)
+        pace_sc  = pace_compat(user_pace, info["pace"])
         weighted = max(0.0, min((
             wt["phoneme"]      * ph_avg
             + wt["tajweed"]    * (text_match_ratio * taj_sc + (1 - taj_sc) * ph_avg)
-            + wt["pace_match"] * pace_sc) * 100, 100.0))
+            + wt["pace_match"] * pace_sc
+        ) * 100, 100.0))
 
         return name, {
-            "reciter": name, "words": word_results,
+            "reciter":        name,
+            "words":          word_results,
             "phoneme_avg":    round(ph_avg * 100, 1),
             "pace_score":     round(pace_sc * 100, 1),
             "tajweed_score":  round(taj_sc * 100, 1),
@@ -858,28 +887,38 @@ def analyse_multi_reciter(
 
     reciter_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(RECITERS)) as ex:
-        for name, res in ex.map(lambda ni: score_one(*ni), RECITERS.items()):
+        futures = {ex.submit(score_one, n, i): n for n, i in RECITERS.items()}
+        for f in concurrent.futures.as_completed(futures):
+            name, res = f.result()
             reciter_results[name] = res
 
     scoring_ms = int((time.time() - t_score) * 1000)
     print(f"[ANALYSE] Scoring {scoring_ms}ms")
 
     # ── STEP 7: Assemble result ────────────────────────────────────
-    valid        = {k: v for k, v in reciter_results.items() if "error" not in v}
+    valid        = {k: v for k, v in reciter_results.items() if v}
     best_reciter = max(valid, key=lambda k: valid[k]["weighted_score"])
     best_score   = valid[best_reciter]["weighted_score"]
-    ranked       = sorted([(n, r.get("weighted_score", 0)) for n, r in reciter_results.items()],
-                           key=lambda x: x[1], reverse=True)
+    ranked       = sorted(
+        [(n, r.get("weighted_score", 0)) for n, r in reciter_results.items()],
+        key=lambda x: x[1], reverse=True
+    )
 
     best_words   = reciter_results[best_reciter].get("words", [])
     word_summary = [{
-        "word": w["word"], "correct_pct": w["correct_pct"], "error_pct": w["error_pct"],
-        "status": w["status"], "confidence": w["confidence"], "error_types": w["error_types"],
-        "tajweed": [t["rule"] for t in w.get("tajweed", [])],
-        "start_ms": w["start_ms"], "end_ms": w["end_ms"],
+        "word":        w["word"],
+        "correct_pct": w["correct_pct"],
+        "error_pct":   w["error_pct"],
+        "status":      w["status"],
+        "confidence":  w["confidence"],
+        "error_types": w["error_types"],
+        "tajweed":     [t["rule"] for t in w.get("tajweed", [])],
+        "start_ms":    w["start_ms"],
+        "end_ms":      w["end_ms"],
     } for w in best_words]
 
-    avg_correct = round(float(np.mean([w["correct_pct"] for w in word_summary])), 1) if word_summary else 0.0
+    avg_correct = round(float(np.mean([w["correct_pct"] for w in word_summary])), 1) \
+                  if word_summary else 0.0
 
     ayah_summary = {
         "average_correct_pct":  avg_correct,
@@ -894,20 +933,28 @@ def analyse_multi_reciter(
         "thresholds_used": {
             "correct": f">= {SCORE_CORRECT * 100:.0f}%",
             "slight":  f">= {SCORE_SLIGHT  * 100:.0f}%",
-            "wrong":   f"< {SCORE_SLIGHT   * 100:.0f}%",
+            "wrong":   f"<  {SCORE_SLIGHT  * 100:.0f}%",
         },
     }
 
     def _save():
         update_user_best_reciter(user_id, best_reciter)
-        save_analysis(user_id, ayah_row["surah"], ayah_row["ayah"],
-                      best_reciter,
-                      {n: round(r.get("weighted_score", 0), 1) for n, r in reciter_results.items()},
-                      best_score)
+        save_analysis(
+            user_id, ayah_row["surah"], ayah_row["ayah"], best_reciter,
+            {n: round(r.get("weighted_score", 0), 1) for n, r in reciter_results.items()},
+            best_score,
+        )
     ASYNC_EXECUTOR.submit(_save)
 
     total_ms = int((time.time() - t_start) * 1000)
-    print(f"[ANALYSE] ✓ TOTAL {total_ms}ms  (transcription:{transcription_ms}ms scoring:{scoring_ms}ms)")
+    print(
+        f"[ANALYSE] ✓ TOTAL {total_ms}ms "
+        f"(transcription:{transcription_ms}ms scoring:{scoring_ms}ms)"
+    )
+    print(
+        f"[ANALYSE] FINAL → S{ayah_row['surah']} A{ayah_row['ayah']} | "
+        f"Best: {best_reciter} ({best_score}%)"
+    )
 
     return {
         "transcribed_text":   transcribed_text,
@@ -915,10 +962,14 @@ def analyse_multi_reciter(
         "user_pace":          user_pace,
         "ayah":               ayah_row,
         "detected_ayah": {
-            "surah":          ayah_row["surah"],
-            "ayah":           ayah_row["ayah"],
-            "text":           ayah_row["text"],
-            "auto_detected":  known_ayah is None,
+            "surah":               ayah_row["surah"],
+            "ayah":                ayah_row["ayah"],
+            "text":                ayah_row["text"],
+            "auto_detected":       auto_detected,
+            "recitation_mismatch": recitation_mismatch,
+            "selected_surah":      selected_row["surah"] if selected_row else None,
+            "selected_ayah":       selected_row["ayah"]  if selected_row else None,
+            "suggested_ayah":      None,
         },
         "best_reciter":       best_reciter,
         "best_reciter_score": best_score,
@@ -1012,7 +1063,7 @@ def too_large(e):
 def index():
     if os.path.exists(os.path.join("static", "index.html")):
         return send_from_directory("static", "index.html")
-    return jsonify({"status": "Quran Checker v4 running ✓"}), 200
+    return jsonify({"status": "Quran Checker v6 running ✓"}), 200
 
 
 @app.route("/favicon.ico")
@@ -1094,16 +1145,6 @@ def api_reciters():
 
 @app.route("/api/analyse", methods=["POST"])
 def api_analyse():
-    """
-    POST multipart/form-data:
-      audio    : audio file (required)
-      surah    : int (required)
-      ayah     : int (STRONGLY RECOMMENDED — send when user picks from list)
-                 → Skips Whisper + detection entirely. 2-4x faster.
-                 → Also prevents Bismillah false positives.
-      user_id  : string (optional)
-      username : string (optional)
-    """
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
     audio_file = request.files["audio"]
@@ -1113,6 +1154,8 @@ def api_analyse():
     except ValueError:
         return jsonify({"error": "surah must be an integer"}), 400
 
+    # Only treat ayah as "selected" if the frontend EXPLICITLY sends it.
+    # Never default to ayah 1 — leave as None so detection runs freely.
     known_ayah = None
     raw_ayah   = request.form.get("ayah", "").strip()
     if raw_ayah:
@@ -1121,17 +1164,45 @@ def api_analyse():
         except ValueError:
             pass
 
-    user_id    = request.form.get("user_id")  or str(uuid.uuid4())
-    username   = request.form.get("username") or "Anonymous"
-    surah_rows = SURAH_INDEX.get(surah)
-    if not surah_rows:
+    user_id  = request.form.get("user_id")  or str(uuid.uuid4())
+    username = request.form.get("username") or "Anonymous"
+
+    try:
+        range_from = int(request.form.get("range_from") or 1)
+        range_to   = int(request.form.get("range_to")   or 9999)
+    except ValueError:
+        range_from, range_to = 1, 9999
+
+    print(f"[API] surah={surah} ayah={known_ayah} range={range_from}-{range_to}")
+
+    all_surah_rows = SURAH_INDEX.get(surah)
+    if not all_surah_rows:
         return jsonify({"error": f"Surah {surah} not found"}), 404
+
+    surah_rows = [r for r in all_surah_rows if range_from <= r["ayah"] <= range_to]
+    if not surah_rows:
+        return jsonify({
+            "error": f"No ayahs found in range {range_from}–{range_to} for Surah {surah}"
+        }), 404
+
+    if known_ayah is None:
+        print("[API] No ayah provided — detection runs freely ✓")
+    else:
+        if not any(r["ayah"] == known_ayah for r in surah_rows):
+            return jsonify({
+                "error": (
+                    f"Selected Ayah {known_ayah} is outside range "
+                    f"{range_from}–{range_to}. Adjust range or pick a different ayah."
+                )
+            }), 400
+        print(f"[API] UI hint: ayah {known_ayah} (detection may override this)")
 
     filename = audio_file.filename or ""
     suffix   = ".webm"
     for ext in [".mp3", ".m4a", ".ogg", ".wav", ".webm"]:
         if filename.lower().endswith(ext):
-            suffix = ext; break
+            suffix = ext
+            break
 
     get_or_create_user(user_id, username)
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -1139,7 +1210,9 @@ def api_analyse():
         tmp_path = tmp.name
 
     try:
-        result = analyse_multi_reciter(tmp_path, surah_rows, user_id, known_ayah)
+        result = analyse_multi_reciter(
+            tmp_path, surah_rows, user_id, known_ayah, all_surah_rows
+        )
         if "error" in result and len(result) <= 3:
             return jsonify(result), 422
         return jsonify(result)
@@ -1170,18 +1243,17 @@ def api_user_profile(user_id):
 def health():
     return jsonify({
         "status":     "ok",
-        "version":    "v4",
+        "version":    "v6",
         "device":     DEVICE,
         "reciters":   list(RECITERS.keys()),
         "ayah_count": len(QURAN_DATA),
         "models":     {"wav2vec2": ARABIC_MODEL_NAME, "whisper": WHISPER_MODEL_SIZE},
         "thresholds": {"correct": SCORE_CORRECT, "slight": SCORE_SLIGHT},
-        "fixes": {
-            "torch_compile":      "disabled on CPU/Windows (FIX 1)",
-            "bismillah":          "hard-suppressed unless 2+ rare word matches (FIX 2)",
-            "silence_trim":       "active via ffmpeg silenceremove (FIX 3)",
-            "hallucination_guard":"active — rejects looping/non-Arabic output (FIX 4)",
-            "whisper_prompt":     "Arabic initial_prompt set (FIX 3)",
+        "v6_changes": {
+            "detection_first": "Detection ALWAYS wins when score >= DETECTION_CONFIDENCE",
+            "no_ui_bias":      "selected_score no longer influences routing at all",
+            "fallback_only":   "UI selection used ONLY when both detectors fail",
+            "DETECTION_CONFIDENCE": DETECTION_CONFIDENCE,
         },
         "cache": {
             "ref_emb": len(REF_EMB_CACHE),
@@ -1190,37 +1262,13 @@ def health():
     })
 
 
-# ══════════════════════════════════════════════════════════════════
-#  STARTUP
-# ══════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     threading.Thread(target=prewarm_wav_cache, daemon=True).start()
-
     port = int(os.environ.get("PORT", 5000))
-    print(f"\n{'='*62}")
-    print(f"  Quran Checker v4 — Windows fix + Bismillah fix + Speed")
-    print(f"  http://localhost:{port}  |  Device: {DEVICE.upper()}")
-    print(f"  Whisper: {WHISPER_MODEL_SIZE}  |  Max scored words: {MAX_WORDS_TO_SCORE}")
-    print(f"")
-    print(f"  KEY FIXES:")
-    print(f"    FIX 1: torch.compile disabled on CPU (no cl.exe needed)")
-    print(f"    FIX 2: Bismillah hard-suppressed in ayah detection")
-    print(f"    FIX 3: Silence trimmed before Whisper (faster)")
-    print(f"    FIX 4: Hallucination loops rejected (cleaner errors)")
-    print(f"")
-    print(f"  SPEED TIP: Frontend must POST ayah=<number> when user")
-    print(f"  selects an ayah. Skips Whisper → 2-4s response.")
-    print(f"")
-    print(f"  For 1000 users (Windows):")
-    print(f"    pip install waitress")
-    print(f"    waitress-serve --port={port} --threads=16 Recitors_v4:app")
-    print(f"  For Linux/Mac:")
-    print(f"    gunicorn -w 1 -k gevent --worker-connections 500 -b 0.0.0.0:{port} Recitors_v4:app")
-    print(f"{'='*62}\n")
     try:
         app.run(host="0.0.0.0", port=port, debug=False, threaded=True, use_reloader=False)
     except OSError as e:
         if "Address already in use" in str(e) or "10048" in str(e):
-            print(f"\n❌ Port {port} in use. Try: PORT=5001 python Recitors_v4.py")
+            print(f"\n❌ Port {port} in use. Try: PORT=5001 python Recitors_v5.py")
         else:
             raise
