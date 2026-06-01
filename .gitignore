@@ -7,5 +7,8 @@ __pycache__/
 *.db-shm
 *.db-journal
 
+# Model / cache
+model_cache/
+
 # OS junk
 .DS_Store
